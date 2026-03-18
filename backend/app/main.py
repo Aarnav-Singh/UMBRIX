@@ -21,6 +21,7 @@ from app.middleware.error_handler import DomainError, domain_error_handler, unha
 from app.middleware.security import SecurityHeadersMiddleware
 from app.middleware.csrf import CSRFMiddleware
 from app.middleware.metrics import setup_metrics
+from app.middleware.request_id import RequestIDMiddleware
 
 from app.api import ingest, health, campaigns, posture, simulation, agents, soar, collaboration, chatops
 from app.api import pipeline_status, events_feed, findings, reporting, settings as settings_api, sigma_rules
@@ -34,6 +35,9 @@ _log_level_map = {"DEBUG": logging.DEBUG, "INFO": logging.INFO, "WARNING": loggi
 
 structlog.configure(
     processors=[
+        # Merge any context vars bound by RequestIDMiddleware (request_id etc.)
+        # into every log record emitted during the request.
+        structlog.contextvars.merge_contextvars,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.add_log_level,
         structlog.dev.ConsoleRenderer(),
@@ -105,26 +109,30 @@ async def lifespan(app: FastAPI):
     if pg_ok:
         import bcrypt
         
-        # Seed default users
-        admin = await postgres.get_user_by_email("admin")
-        if not admin:
-            logger.info("seeding_default_users")
-            await postgres.create_user(UserRecord(
-                id=str(uuid.uuid4()),
-                tenant_id="default",
-                email="admin",
-                password_hash=bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode('utf-8'),
-                role="admin",
-                display_name="System Administrator"
-            ))
-            await postgres.create_user(UserRecord(
-                id=str(uuid.uuid4()),
-                tenant_id="default",
-                email="analyst",
-                password_hash=bcrypt.hashpw(b"analyst", bcrypt.gensalt()).decode('utf-8'),
-                role="analyst",
-                display_name="Security Analyst"
-            ))
+        # Seed default users ONLY in development mode.
+        # In production, these default credentials are a critical vulnerability.
+        if settings.environment == "development":
+            admin = await postgres.get_user_by_email("admin")
+            if not admin:
+                logger.info("seeding_default_users", note="development-only")
+                await postgres.create_user(UserRecord(
+                    id=str(uuid.uuid4()),
+                    tenant_id="default",
+                    email="admin",
+                    password_hash=bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode('utf-8'),
+                    role="admin",
+                    display_name="System Administrator"
+                ))
+                await postgres.create_user(UserRecord(
+                    id=str(uuid.uuid4()),
+                    tenant_id="default",
+                    email="analyst",
+                    password_hash=bcrypt.hashpw(b"analyst", bcrypt.gensalt()).decode('utf-8'),
+                    role="analyst",
+                    display_name="Security Analyst"
+                ))
+        else:
+            logger.info("skipping_default_user_seed", environment=settings.environment)
 
         # Seed default connectors
         from app.repositories.postgres import ConnectorRecord
@@ -236,6 +244,12 @@ def create_app() -> FastAPI:
     # Error Handlers
     app.add_exception_handler(DomainError, domain_error_handler)
     app.add_exception_handler(Exception, unhandled_error_handler)
+
+    # Request ID Correlation — MUST be added last so it becomes the outermost
+    # middleware layer (last add_middleware call = first to execute).
+    # This guarantees the request_id ContextVar is set before any route handler,
+    # exception handler, or inner middleware runs.
+    app.add_middleware(RequestIDMiddleware)
 
     # Register API Routers
     app.include_router(auth_router)

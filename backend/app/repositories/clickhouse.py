@@ -379,6 +379,14 @@ class ClickHouseRepository:
 
         where_clause = " AND ".join(where)
 
+        # SECURITY NOTE — this f-string is safe.
+        # `where` only ever contains ClickHouse *parameter placeholder strings*
+        # such as "tenant_id = {tenant_id:String}" or "campaign_id = {campaign_id:String}".
+        # Raw user values are NEVER interpolated here; they are passed separately
+        # in the `parameters={}` dict below and sanitised by the ClickHouse client
+        # driver before the query is sent over the wire.
+        # DO NOT modify this pattern without also replacing the params dict.
+
         if not self._client:
             filtered = self._fallback_events
             filtered = [e for e in filtered if e.get("tenant_id", "default") == tenant_id]

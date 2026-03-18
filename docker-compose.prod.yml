@@ -110,6 +110,11 @@ services:
       - qdrant_data:/qdrant/storage
     networks:
       - sf_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
 
   # ==========================================
   # Postgres (SOAR & App Config)
@@ -118,7 +123,7 @@ services:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: sentinel
-      POSTGRES_PASSWORD: password123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: sentinel_fabric
     ports:
       - "5432:5432"
@@ -126,6 +131,31 @@ services:
       - pg_data:/var/lib/postgresql/data
     networks:
       - sf_network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  # ==========================================
+  # PgBouncer (Connection Pooling)
+  # ==========================================
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DB_USER: sentinel
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 100
+    ports:
+      - "6432:5432"
+    networks:
+      - sf_network
+    depends_on:
+      - postgres
 
   # ==========================================
   # Kafka Worker (Decoupled Pipeline Execution)
@@ -133,7 +163,12 @@ services:
   worker:
     build: 
       context: ./backend
-      dockerfile: Dockerfile.worker
+      target: worker
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
     depends_on:
       - kafka
       - clickhouse-node1
@@ -146,7 +181,8 @@ services:
       - CLICKHOUSE_HOST=clickhouse-node1
       - REDIS_HOST=redis-master
       - QDRANT_HOST=qdrant
-      - POSTGRES_DSN=postgresql+asyncpg://sentinel:password123@postgres:5432/sentinel_fabric
+      # Use PgBouncer port 6432 instead of direct Postgres
+      - POSTGRES_DSN=postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD}@pgbouncer:5432/sentinel_fabric
     networks:
       - sf_network
 
@@ -156,15 +192,23 @@ services:
   api:
     build: 
       context: ./backend
+      target: api
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
     ports:
       - "8000:8000"
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - POSTGRES_DSN=postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD}@pgbouncer:5432/sentinel_fabric
       # The API pushes to Kafka, does not run the pipeline directly
     networks:
       - sf_network
     depends_on:
       - kafka
+      - pgbouncer
 
   frontend:
     build:
@@ -180,6 +224,7 @@ services:
   gateway-eu-west:
     build:
       context: ./backend
+      target: base
     command: uvicorn app.edge_gateway:app --host 0.0.0.0 --port 8001
     ports:
       - "8001:8001"
@@ -194,6 +239,7 @@ services:
   gateway-us-east:
     build:
       context: ./backend
+      target: base
     command: uvicorn app.edge_gateway:app --host 0.0.0.0 --port 8002
     ports:
       - "8002:8002"
@@ -204,6 +250,29 @@ services:
       - sf_network
     depends_on:
       - kafka
+
+  # ==========================================
+  # Monitoring (Prometheus & Grafana)
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - sf_network
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD}
+    depends_on:
+      - prometheus
+    networks:
+      - sf_network
 
 networks:
   sf_network:

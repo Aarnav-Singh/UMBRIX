@@ -10,6 +10,8 @@ from fastapi.responses import JSONResponse
 
 import structlog
 
+from app.middleware.request_id import request_id_ctx_var
+
 logger = structlog.get_logger(__name__)
 
 
@@ -42,16 +44,23 @@ class ValidationError(DomainError):
         super().__init__(detail, status_code=422)
 
 
-async def domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:
+async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": exc.message},
+        content={
+            "error": exc.message,
+            "request_id": request_id_ctx_var.get() or None,
+        },
     )
 
 
-async def unhandled_error_handler(_request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("unhandled_error", error=str(exc))
+async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    rid = request_id_ctx_var.get() or None
+    logger.exception("unhandled_error", error=str(exc), request_id=rid)
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal server error"},
+        content={
+            "error": "Internal server error",
+            "request_id": rid,
+        },
     )
