@@ -68,7 +68,11 @@ def client(mock_ratelimiter, mock_postgres, mock_pipeline):
     deps._clickhouse = mock_ch
     deps._redis = mock_redis
 
-    return TestClient(app)
+    test_client = TestClient(app)
+    # Add Authorization header so CSRF middleware skips enforcement
+    # (Bearer tokens are immune to CSRF — see middleware/csrf.py line 28-30)
+    test_client.headers["Authorization"] = "Bearer test-token"
+    return test_client
 
 def test_health_check(client):
     """Test the health check endpoint with mocked dependencies."""

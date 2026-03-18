@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 from pydantic import BaseModel
 from app.services.soar.actions import ActionRegistry
-from app.services.sse_broadcaster import broadcaster as SSEBroadcaster
+from app.services.sse_broadcaster import broadcaster
 
 class Node(BaseModel):
     id: str
@@ -52,7 +52,8 @@ class ExecutionEngine:
         """Orchestrates the execution of multiple nodes in a playbook."""
         results = []
         for node in playbook.nodes:
-            await SSEBroadcaster.broadcast("soar_update", {
+            await broadcaster.broadcast({
+                "type": "soar_update",
                 "playbook_id": playbook.id, 
                 "node_id": node.id, 
                 "status": "running"
@@ -60,7 +61,8 @@ class ExecutionEngine:
             
             status = await self.execute_action(node.action_type, node.provider, node.params)
             
-            await SSEBroadcaster.broadcast("soar_update", {
+            await broadcaster.broadcast({
+                "type": "soar_update",
                 "playbook_id": playbook.id, 
                 "node_id": node.id, 
                 "status": status

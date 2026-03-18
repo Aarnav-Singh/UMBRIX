@@ -74,6 +74,15 @@ class Settings(BaseSettings):
     otx_api_key: str = ""
     ioc_feed_interval_hours: int = 6
 
+    # ── Threat Intel Integrations ─────────────────────
+    virustotal_api_key: str = ""
+    abuseipdb_api_key: str = ""
+    misp_url: str = ""           # e.g. "https://misp.example.internal"
+    misp_api_key: str = ""
+    taxii_url: str = ""          # e.g. "https://taxii.example.internal/api1"
+    taxii_collection_id: str = ""
+    taxii_token: str = ""
+
     # ── Narrative ──────────────────────────────────────
     narrative_mode: str = "llm"  # "llm" or "template"
     anthropic_api_key: str = ""
@@ -83,10 +92,45 @@ class Settings(BaseSettings):
     llama_cpp_temperature: float = 0.2
     llama_cpp_max_tokens: int = 200
 
-    # ── SOAR Integrations (Mocks) ──────────────────────
+    # ── SOAR Integrations ─────────────────────────────
+    # CrowdStrike Falcon
+    crowdstrike_client_id: str = ""
+    crowdstrike_client_secret: str = ""
+    crowdstrike_base_url: str = "https://api.crowdstrike.com"
+    # Legacy single-key field (kept for backward compat)
     crowdstrike_api_key: str = ""
+
+    # Palo Alto Networks PAN-OS
+    paloalto_host: str = ""
     paloalto_api_key: str = ""
+
+    # Okta
+    okta_domain: str = ""   # e.g. "https://your-org.okta.com"
     okta_api_token: str = ""
+
+    def model_post_init(self, __context) -> None:
+        """Validate security invariants on startup."""
+        _INSECURE_SECRETS = {
+            "CHANGE-ME-IN-PRODUCTION",
+            "changeme",
+            "secret",
+            "password",
+            "",
+        }
+        if self.environment != "development":
+            if self.jwt_secret_key in _INSECURE_SECRETS:
+                raise RuntimeError(
+                    "FATAL: jwt_secret_key is set to an insecure placeholder. "
+                    "Set a strong random value in your .env before running in "
+                    f"'{self.environment}' mode."
+                )
+            if self.cors_origins == ["http://localhost:3000"]:
+                import warnings
+                warnings.warn(
+                    "CORS origins are still set to localhost:3000 in "
+                    f"'{self.environment}' mode. Set CORS_ORIGINS to your actual domain(s).",
+                    stacklevel=2,
+                )
 
 
 settings = Settings()

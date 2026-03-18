@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from app.schemas.canonical_event import CanonicalEvent
 from app.dependencies import get_app_pipeline, get_app_ratelimiter
+from app.services.pii_masking import mask_event
 
 import structlog
 
@@ -56,7 +57,10 @@ async def ingest_event(
     await limiter.check_rate_limit(request, limit=50, window_seconds=60)
     pipeline = get_app_pipeline()
     try:
-        processed = await pipeline.process(event)
+        # Apply PII masking before pipeline processing
+        masked_data = mask_event(event.model_dump())
+        masked_event = CanonicalEvent(**masked_data)
+        processed = await pipeline.process(masked_event)
         return {
             "status": "accepted",
             "event_id": processed.event_id,

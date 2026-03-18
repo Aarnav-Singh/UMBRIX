@@ -64,3 +64,11 @@ class SSEBroadcaster:
     @property
     def subscriber_count(self) -> int:
         return len(self._subscribers)
+
+
+# Module-level singleton used by the SOAR engine and other services.
+# main.py also creates its own instance for the lifespan scope; if you
+# need the lifespan-scoped instance, use dependency injection via
+# get_app_broadcaster().  This singleton is a safe fallback for modules
+# that import at module-load time (e.g. engine.py).
+broadcaster = SSEBroadcaster()

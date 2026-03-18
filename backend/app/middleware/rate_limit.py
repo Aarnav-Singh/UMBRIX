@@ -60,7 +60,10 @@ class RateLimiter:
         except Exception as exc:
             if isinstance(exc, HTTPException):
                 raise
-            logger.error("rate_limit_error", error=str(exc))
-            # Fail open for safety in case of Redis issues, or fail closed for security?
-            # In a security product, we might prefer failing closed, or at least logging.
-            return
+            logger.error("rate_limit_redis_error", error=str(exc))
+            # FAIL-CLOSED: deny the request when Redis is unavailable.
+            # A security product must never silently bypass rate limiting.
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Rate limiting service temporarily unavailable. Request denied.",
+            )
