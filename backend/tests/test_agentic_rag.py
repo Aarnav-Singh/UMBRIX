@@ -1,4 +1,8 @@
 import pytest
+
+# Skip the entire module if langgraph is not installed so that missing the
+# optional dependency doesn't abort collection of all other test files.
+pytest.importorskip("langgraph")
 from unittest.mock import AsyncMock, patch
 
 from app.schemas.canonical_event import CanonicalEvent, Entity, NetworkInfo, MLScores, ActionType

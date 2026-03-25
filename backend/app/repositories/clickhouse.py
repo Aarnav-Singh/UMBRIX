@@ -6,6 +6,7 @@ and campaign records. Optimized for time-range + aggregate queries.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone, timedelta
 
 import clickhouse_connect
 from clickhouse_connect.driver.client import Client as CHClient
@@ -493,6 +494,51 @@ class ClickHouseRepository:
                 "tenant_id": tenant_id,
                 "query": query,
                 "limit": limit,
+            },
+        )
+        return [
+            dict(zip(result.column_names, row))
+            for row in result.result_rows
+        ]
+
+    async def query_posture_history(
+        self,
+        tenant_id: str,
+        days: int = 30,
+    ) -> list[dict]:
+        """Aggregate posture history from events data."""
+        if not self._client:
+            # Fallback for tests
+            now = datetime.now(timezone.utc)
+            history = []
+            for i in range(days):
+                date = (now - timedelta(days=days - i - 1)).strftime("%Y-%m-%d")
+                history.append({
+                    "day": date,
+                    "avg_score": 0.0,
+                    "high_threat_events": 0,
+                    "total_events": 0
+                })
+            return history
+
+        sql = """
+            SELECT
+                toDate(timestamp) AS day,
+                avg(meta_score) AS avg_score,
+                countIf(meta_score > 0.7) AS high_threat_events,
+                count() AS total_events
+            FROM events
+            WHERE tenant_id = {tenant_id:String}
+              AND timestamp >= now() - INTERVAL {days:Int32} DAY
+            GROUP BY day
+            ORDER BY day ASC
+        """
+        result = await asyncio.to_thread(
+            self.client.query,
+            sql,
+            parameters={
+                "tenant_id": tenant_id,
+                "days": days,
             },
         )
         return [

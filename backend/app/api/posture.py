@@ -259,14 +259,25 @@ async def posture_remediation_queue(claims: dict = Depends(require_viewer)):
 
 
 @router.get("/posture/history")
-async def posture_score_history(claims: dict = Depends(require_viewer)):
+async def posture_score_history(days: int = 30, claims: dict = Depends(require_viewer)):
     """30-day posture score history for trend charts."""
-    return {
-        "data_points": [
-            {"date": f"2026-02-{i + 7:02d}", "score": 55 + random.Random(i).randint(0, 8) + i * 0.6}
-            for i in range(30)
-        ]
-    }
+    ch = get_app_clickhouse()
+    tenant_id = claims.get("tenant_id", "default")
+    
+    try:
+        rows = await ch.query_posture_history(tenant_id, days)
+        data_points = []
+        for r in rows:
+            # Map avg_score to a 0-100 scale where higher is better (assuming meta_score 0 is best)
+            score = 100.0 - (float(r.get("avg_score", 0.0)) * 100.0)
+            data_points.append({
+                "date": str(r["day"]),
+                "score": round(max(0.0, min(100.0, score)), 1)
+            })
+        return {"data_points": data_points}
+    except Exception as e:
+        logger.error("posture_history_query_failed", error=str(e))
+        return {"data_points": []}
 
 
 @router.post("/posture/scan")

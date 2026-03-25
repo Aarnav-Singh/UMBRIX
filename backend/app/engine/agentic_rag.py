@@ -1,11 +1,22 @@
-"""Agentic RAG orchestrator using LangGraph."""
+"""Agentic RAG orchestrator using LangGraph.
+
+LangGraph is an optional dependency. If it is not installed the orchestrator
+degrades gracefully to a no-op stub that returns empty context dicts,
+allowing the pipeline worker to start without the heavy graph runtime.
+"""
 import asyncio
 from typing import Annotated, TypedDict
-from langgraph.graph import StateGraph, START, END
+import structlog
+
+try:
+    from langgraph.graph import StateGraph, START, END
+    _LANGGRAPH_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _LANGGRAPH_AVAILABLE = False
+    StateGraph = START = END = None  # type: ignore[assignment]
 
 from app.engine.rag_retriever import RagRetriever
 from app.schemas.canonical_event import CanonicalEvent
-import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -25,6 +36,14 @@ class AgenticRagState(TypedDict):
 class AgenticRagOrchestrator:
     def __init__(self, retriever: RagRetriever):
         self.retriever = retriever
+        if not _LANGGRAPH_AVAILABLE:
+            logger.warning(
+                "langgraph_not_installed",
+                msg="AgenticRagOrchestrator running in no-op mode. "
+                    "Install langgraph to enable graph-based RAG routing."
+            )
+            self.graph = None
+            return
         self.graph = self._build_graph()
 
     def _build_graph(self):
@@ -113,7 +132,16 @@ class AgenticRagOrchestrator:
         }
 
     async def retrieve_context(self, tenant_id: str, event: CanonicalEvent) -> dict:
-        """Run the LangGraph workflow to gather RAG context for an event."""
+        """Run the LangGraph workflow to gather RAG context for an event.
+
+        Falls back to empty context if langgraph is not installed.
+        """
+        _empty = {"historical_events": [], "graph_paths": [], "analyst_notes": []}
+
+        if self.graph is None:
+            logger.debug("agentic_rag_noop", tenant_id=tenant_id)
+            return _empty
+
         initial_state = {
             "tenant_id": tenant_id,
             "event": event,
