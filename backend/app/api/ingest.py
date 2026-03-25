@@ -23,23 +23,184 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
-# ── Parser stubs for cloud log sources ────────────────────
-# These are lightweight wrappers; full implementations live in
-# app/connectors/ and are used by the Kafka consumer.
+# ── Real parsers for cloud log sources ────────────────────
+import re
+from datetime import datetime, timezone
 
-class _StubParser:
-    """Minimal parser that wraps raw dicts/strings into CanonicalEvents."""
+from app.schemas.canonical_event import (
+    ActionType, OutcomeType, SeverityLevel, NetworkInfo, Entity, EntityType, EventMetadata,
+)
+
+_SYSLOG_RFC3164 = re.compile(
+    r"^<(?P<pri>\d{1,3})>"
+    r"(?P<timestamp>\w{3}\s+\d{1,2}\s\d{2}:\d{2}:\d{2})\s+"
+    r"(?P<hostname>\S+)\s+"
+    r"(?P<app>\S+?)(?:\[(?P<pid>\d+)\])?:\s*"
+    r"(?P<message>.*)$"
+)
+
+_SYSLOG_RFC5424 = re.compile(
+    r"^<(?P<pri>\d{1,3})>\d?\s*"
+    r"(?P<timestamp>\S+)\s+"
+    r"(?P<hostname>\S+)\s+"
+    r"(?P<app>\S+)\s+"
+    r"(?P<procid>\S+)\s+"
+    r"(?P<msgid>\S+)\s+"
+    r"(?:\[.*?\]\s*)?"
+    r"(?P<message>.*)$"
+)
+
+_SYSLOG_SEVERITY_MAP = {
+    0: SeverityLevel.CRITICAL, 1: SeverityLevel.CRITICAL,
+    2: SeverityLevel.CRITICAL, 3: SeverityLevel.HIGH,
+    4: SeverityLevel.MEDIUM,   5: SeverityLevel.LOW,
+    6: SeverityLevel.INFO,     7: SeverityLevel.INFO,
+}
+
+_IP_PATTERN = re.compile(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b")
+
+
+class _SyslogParser:
+    """Parse RFC 3164/5424 syslog messages into CanonicalEvents."""
+
+    @staticmethod
+    def parse(raw: str) -> CanonicalEvent:
+        match = _SYSLOG_RFC5424.match(raw) or _SYSLOG_RFC3164.match(raw)
+        if not match:
+            raise ValueError(f"Unparseable syslog message: {raw[:120]}")
+
+        groups = match.groupdict()
+        pri = int(groups.get("pri", 6 * 8 + 6))
+        sev_num = pri & 0x07
+        severity = _SYSLOG_SEVERITY_MAP.get(sev_num, SeverityLevel.INFO)
+
+        message = groups.get("message", raw)
+        hostname = groups.get("hostname", "unknown")
+        app = groups.get("app", "")
+
+        # Try to extract IP addresses from message
+        ips = _IP_PATTERN.findall(message)
+        src_ip = ips[0] if len(ips) >= 1 else None
+        dst_ip = ips[1] if len(ips) >= 2 else None
+
+        action = ActionType.ALERT if sev_num <= 4 else ActionType.UNKNOWN
+
+        return CanonicalEvent(
+            source_type="syslog",
+            event_category="syslog",
+            event_type=app,
+            severity=severity,
+            action=action,
+            outcome=OutcomeType.UNKNOWN,
+            message=message,
+            network=NetworkInfo(src_ip=src_ip, dst_ip=dst_ip) if src_ip else None,
+            source_entity=Entity(entity_type=EntityType.HOST, identifier=hostname),
+            metadata=EventMetadata(parser_name="syslog", raw_log=raw),
+        )
+
+
+class _AWSCloudTrailParser:
+    """Parse AWS CloudTrail JSON records into CanonicalEvents."""
+
+    _SEVERITY_MAP = {
+        "ConsoleLogin": SeverityLevel.MEDIUM,
+        "StopLogging": SeverityLevel.CRITICAL,
+        "DeleteTrail": SeverityLevel.CRITICAL,
+        "AuthorizeSecurityGroupIngress": SeverityLevel.HIGH,
+        "RunInstances": SeverityLevel.MEDIUM,
+        "CreateUser": SeverityLevel.HIGH,
+        "AttachUserPolicy": SeverityLevel.HIGH,
+    }
 
     @staticmethod
     def parse(raw: Any) -> CanonicalEvent:
         if isinstance(raw, str):
             raw = json.loads(raw)
-        return CanonicalEvent(**raw)
+        if not isinstance(raw, dict):
+            raise ValueError("CloudTrail record must be a JSON object")
+
+        event_name = raw.get("eventName", "Unknown")
+        event_source = raw.get("eventSource", "aws")
+        source_ip = raw.get("sourceIPAddress", None)
+        user_identity = raw.get("userIdentity", {})
+        user_name = user_identity.get("userName") or user_identity.get("arn", "unknown")
+        error_code = raw.get("errorCode")
+
+        severity = _AWSCloudTrailParser._SEVERITY_MAP.get(event_name, SeverityLevel.INFO)
+        outcome = OutcomeType.FAILURE if error_code else OutcomeType.SUCCESS
+        action = ActionType.AUTHENTICATE if "Login" in event_name else ActionType.EXECUTE
+
+        return CanonicalEvent(
+            source_type="aws_cloudtrail",
+            event_category="cloud",
+            event_type=event_name,
+            severity=severity,
+            action=action,
+            outcome=outcome,
+            message=f"{event_name} by {user_name} via {event_source}",
+            signature_id=event_name,
+            signature_name=event_source,
+            network=NetworkInfo(src_ip=source_ip) if source_ip else None,
+            source_entity=Entity(entity_type=EntityType.USER, identifier=user_name),
+            metadata=EventMetadata(
+                parser_name="aws_cloudtrail",
+                raw_log=json.dumps(raw) if isinstance(raw, dict) else str(raw),
+            ),
+        )
 
 
-SyslogParser = _StubParser()
-AWSCloudTrailParser = _StubParser()
-GCPAuditParser = _StubParser()
+class _GCPAuditParser:
+    """Parse GCP Cloud Audit Log entries into CanonicalEvents."""
+
+    _SEVERITY_MAP = {
+        "compute.instances.delete": SeverityLevel.HIGH,
+        "compute.firewalls.delete": SeverityLevel.CRITICAL,
+        "iam.serviceAccounts.create": SeverityLevel.HIGH,
+        "storage.buckets.delete": SeverityLevel.CRITICAL,
+        "logging.sinks.delete": SeverityLevel.CRITICAL,
+    }
+
+    @staticmethod
+    def parse(raw: Any) -> CanonicalEvent:
+        if isinstance(raw, str):
+            raw = json.loads(raw)
+        if not isinstance(raw, dict):
+            raise ValueError("GCP audit log must be a JSON object")
+
+        proto = raw.get("protoPayload", raw)
+        method_name = proto.get("methodName", "unknown")
+        caller_ip = proto.get("requestMetadata", {}).get("callerIp")
+        service_name = proto.get("serviceName", "gcp")
+        auth_info = proto.get("authenticationInfo", {})
+        principal = auth_info.get("principalEmail", "unknown")
+        status = proto.get("status", {})
+        error_code = status.get("code", 0) if isinstance(status, dict) else 0
+
+        severity = _GCPAuditParser._SEVERITY_MAP.get(method_name, SeverityLevel.INFO)
+        outcome = OutcomeType.FAILURE if error_code != 0 else OutcomeType.SUCCESS
+
+        return CanonicalEvent(
+            source_type="gcp_audit",
+            event_category="cloud",
+            event_type=method_name,
+            severity=severity,
+            action=ActionType.EXECUTE,
+            outcome=outcome,
+            message=f"{method_name} by {principal} on {service_name}",
+            signature_id=method_name,
+            signature_name=service_name,
+            network=NetworkInfo(src_ip=caller_ip) if caller_ip else None,
+            source_entity=Entity(entity_type=EntityType.USER, identifier=principal),
+            metadata=EventMetadata(
+                parser_name="gcp_audit",
+                raw_log=json.dumps(raw) if isinstance(raw, dict) else str(raw),
+            ),
+        )
+
+
+SyslogParser = _SyslogParser()
+AWSCloudTrailParser = _AWSCloudTrailParser()
+GCPAuditParser = _GCPAuditParser()
 
 
 class RawLogRequest(BaseModel):

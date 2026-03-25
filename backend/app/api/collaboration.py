@@ -9,6 +9,7 @@ import json
 from typing import Dict, List
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import structlog
+from app.dependencies import get_app_postgres
 
 logger = structlog.get_logger(__name__)
 
@@ -92,8 +93,25 @@ async def collaborate_ws(websocket: WebSocket, incident_id: str):
                     })
                 
                 elif msg_type in ["cursor", "typing", "tag_added", "note_updated"]:
+                    # Persist tags and notes to PostgreSQL before broadcasting
+                    if msg_type in ("tag_added", "note_updated"):
+                        try:
+                            repo = get_app_postgres()
+                            if msg_type == "tag_added":
+                                await repo.save_incident_tag(
+                                    incident_id=incident_id,
+                                    user_id=user_id,
+                                    tag=payload.get("tag", ""),
+                                )
+                            else:
+                                await repo.save_incident_annotation(
+                                    incident_id=incident_id,
+                                    user_id=user_id,
+                                    content=payload.get("content", ""),
+                                )
+                        except Exception:
+                            logger.exception("ws_persist_failed", incident_id=incident_id)
                     # Re-broadcast to all other clients in this incident
-                    # In a real setup, we might persist notes/tags to DB here or rely on REST
                     await manager.broadcast_to_incident(incident_id, payload)
                     
             except json.JSONDecodeError:

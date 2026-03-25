@@ -25,51 +25,6 @@ interface FindingsResponse {
   findings?: Finding[];
 }
 
-// ─── Demo fallback ────────────────────────────────────────
-
-const DEMO_FINDINGS: Finding[] = [
-  {
-    id: 'FND-01',
-    title: 'RCE Vulnerability: SRV-PROD-01',
-    description: 'Unauthorized packet injection detected in edge node cluster.',
-    ip: '10.0.4.122',
-    created_at: new Date(Date.now() - 2 * 60000).toISOString(),
-    severity: 'critical',
-    status: 'open',
-    source: 'endpoint',
-  },
-  {
-    id: 'FND-02',
-    title: 'Lateral Movement Detected',
-    description: 'Anomalous credential usage in HR-SEGMENT vlan-40.',
-    ip: 'SVC_ADMIN_TEMP',
-    created_at: new Date(Date.now() - 14 * 60000).toISOString(),
-    severity: 'high',
-    status: 'open',
-    source: 'network',
-  },
-  {
-    id: 'FND-03',
-    title: 'Privilege Escalation Attempt',
-    description: 'sudo abuse detected on DB-CLUSTER-MAIN by non-privileged user.',
-    ip: '10.0.1.45',
-    created_at: new Date(Date.now() - 35 * 60000).toISOString(),
-    severity: 'high',
-    status: 'open',
-    source: 'identity',
-  },
-  {
-    id: 'FND-04',
-    title: 'Suspicious S3 Exfil Pattern',
-    description: 'Unusual GetObject spike from IP outside known CIDR ranges.',
-    ip: '198.51.100.42',
-    created_at: new Date(Date.now() - 60 * 60000).toISOString(),
-    severity: 'medium',
-    status: 'open',
-    source: 'cloud',
-  },
-];
-
 // ─── Helpers ─────────────────────────────────────────────
 
 function timeAgo(iso?: string): string {
@@ -133,13 +88,12 @@ export default function FindingsPage() {
   );
 
   // Normalise: API may return array or { findings: [] }
-  let findings: Finding[] = DEMO_FINDINGS;
+  let findings: Finding[] = [];
   if (data) {
     if (Array.isArray(data)) {
-      findings = data.length > 0 ? data : DEMO_FINDINGS;
+      findings = data;
     } else if ((data as FindingsResponse).findings) {
-      const arr = (data as FindingsResponse).findings!;
-      findings = arr.length > 0 ? arr : DEMO_FINDINGS;
+      findings = (data as FindingsResponse).findings!;
     }
   }
 

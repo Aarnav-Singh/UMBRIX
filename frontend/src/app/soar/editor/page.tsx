@@ -24,6 +24,7 @@ export default function PlaybookEditorPage() {
     const [name, setName] = useState("New Security Playbook");
     const [description, setDescription] = useState("Description of the automated response sequence.");
     const [steps, setSteps] = useState<PlaybookStep[]>([]);
+    const [saveStatus, setSaveStatus] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
 
     const addStep = (type: ActionType) => {
@@ -34,10 +35,31 @@ export default function PlaybookEditorPage() {
         setSteps(steps.filter(s => s.id !== id));
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         setSaving(true);
-        setTimeout(() => setSaving(false), 800);
-        // Call backend API here
+        setSaveStatus(null);
+        try {
+            const res = await fetch('/api/proxy/api/v1/soar/playbooks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    description,
+                    nodes: steps.map(s => ({
+                        id: s.id,
+                        action_type: s.type,
+                        provider: s.type === 'isolate_host' ? 'crowdstrike' : s.type === 'block_ip' ? 'paloalto' : 'system',
+                        params: s.params,
+                    })),
+                }),
+            });
+            if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+            setSaveStatus('Saved!');
+        } catch (e) {
+            setSaveStatus('Save failed');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (

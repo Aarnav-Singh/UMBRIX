@@ -50,10 +50,6 @@ async def pipeline_status(claims: dict = Depends(require_viewer)):
         is_active = model is not None
         # We try to look for last_score, and if not present, substitute a default value until one gets generated.
         score = getattr(model, "last_score", 0.0) if is_active else 0.0
-        # Give mock scores so the dashboard looks alive even if no live events are sent
-        if score == 0.0:
-             mock_scores = {"ensemble": 0.87, "vae": 0.72, "hst": 0.91, "temporal": 0.65, "adversarial": 0.88, "meta_learner": 0.93}
-             score = mock_scores.get(model_id, 0.0)
         
         streams[model_id] = {
             "score": score,
@@ -65,7 +61,7 @@ async def pipeline_status(claims: dict = Depends(require_viewer)):
     return {
         "streams": streams,
         "events_processed": event_count,
-        "avg_duration_ms": round(pipeline.avg_duration_ms, 2) if pipeline.avg_duration_ms > 0 else 14.0,  # default placeholder if 0
+        "avg_duration_ms": round(pipeline.avg_duration_ms, 2),
         "pipeline_active": True,
     }
 

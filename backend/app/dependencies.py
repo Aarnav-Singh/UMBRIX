@@ -13,6 +13,7 @@ from app.repositories.postgres import PostgresRepository
 from app.repositories.qdrant_store import QdrantRepository
 from app.services.sse_broadcaster import SSEBroadcaster
 from app.services.pipeline import PipelineService
+from app.services.soar.engine import ExecutionEngine
 
 if TYPE_CHECKING:
     from app.middleware.rate_limit import RateLimiter
@@ -26,6 +27,7 @@ _qdrant: QdrantRepository | None = None
 _broadcaster: SSEBroadcaster | None = None
 _pipeline: PipelineService | None = None
 _ratelimiter: RateLimiter | None = None
+_engine: ExecutionEngine | None = None
 
 
 def init_dependencies(
@@ -35,7 +37,7 @@ def init_dependencies(
     qdrant: QdrantRepository,
     broadcaster: SSEBroadcaster,
 ) -> None:
-    global _clickhouse, _redis, _postgres, _qdrant, _broadcaster, _pipeline
+    global _clickhouse, _redis, _postgres, _qdrant, _broadcaster, _pipeline, _engine
     _clickhouse = ch
     _redis = redis
     _postgres = postgres
@@ -45,7 +47,8 @@ def init_dependencies(
     from app.middleware.rate_limit import RateLimiter
     _ratelimiter = RateLimiter(redis_store=redis)
     
-    from app.config import settings
+    _engine = ExecutionEngine(postgres_repo=postgres)
+    
     from app.config import settings
     _pipeline = PipelineService(
         clickhouse=ch,
@@ -96,3 +99,8 @@ def get_app_pipeline() -> PipelineService:
 def get_app_ratelimiter() -> RateLimiter:
     assert _ratelimiter is not None, "RateLimiter not initialized"
     return _ratelimiter
+
+
+def get_app_engine() -> ExecutionEngine:
+    assert _engine is not None, "ExecutionEngine not initialized"
+    return _engine

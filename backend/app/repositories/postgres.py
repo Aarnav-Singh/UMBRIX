@@ -95,6 +95,26 @@ class PlaybookTemplate(Base):
     updated_at: Mapped[Optional[str]] = mapped_column(DateTime, onupdate=func.now())
 
 
+class PausedPlaybookState(Base):
+    __tablename__ = "paused_playbook_states"
+
+    approval_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    playbook_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    paused_node_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[Optional[str]] = mapped_column(DateTime, server_default=func.now())
+
+
+class IncidentAnnotation(Base):
+    __tablename__ = "incident_annotations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    incident_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    content: Mapped[str] = mapped_column(String(4096), nullable=False)
+    annotation_type: Mapped[str] = mapped_column(String(32), default="note")
+    created_at: Mapped[Optional[str]] = mapped_column(DateTime, server_default=func.now())
+
+
 class ReportMetadata(Base):
     __tablename__ = "report_metadata"
 
@@ -282,6 +302,70 @@ class PostgresRepository:
                 session.add_all(templates)
                 await session.commit()
                 logger.info("seeded_playbook_templates")
+
+    async def create_playbook(self, name: str, description: str, nodes: list) -> PlaybookTemplate:
+        import uuid
+        playbook = PlaybookTemplate(
+            id=str(uuid.uuid4())[:8],
+            name=name,
+            description=description,
+            status="Draft",
+            nodes=nodes,
+        )
+        async with self._session() as session:
+            session.add(playbook)
+            await session.commit()
+        return playbook
+
+    # ── Paused Playbook State ───────────────────────────
+
+    async def save_paused_state(self, playbook_id: str, node_index: int, approval_id: str) -> None:
+        state = PausedPlaybookState(
+            approval_id=approval_id,
+            playbook_id=playbook_id,
+            paused_node_index=node_index,
+        )
+        async with self._session() as session:
+            session.add(state)
+            await session.commit()
+
+    async def get_paused_state(self, approval_id: str) -> Optional[PausedPlaybookState]:
+        async with self._session() as session:
+            result = await session.execute(
+                select(PausedPlaybookState).where(PausedPlaybookState.approval_id == approval_id)
+            )
+            return result.scalar_one_or_none()
+
+    async def clear_paused_state(self, approval_id: str) -> None:
+        async with self._session() as session:
+            state = await session.get(PausedPlaybookState, approval_id)
+            if state:
+                await session.delete(state)
+                await session.commit()
+
+    # ── Collaboration Persistence ───────────────────────
+
+    async def save_incident_annotation(self, incident_id: str, user_id: str, content: str) -> None:
+        annotation = IncidentAnnotation(
+            incident_id=incident_id,
+            user_id=user_id,
+            content=content,
+            annotation_type="note",
+        )
+        async with self._session() as session:
+            session.add(annotation)
+            await session.commit()
+
+    async def save_incident_tag(self, incident_id: str, user_id: str, tag: str) -> None:
+        annotation = IncidentAnnotation(
+            incident_id=incident_id,
+            user_id=user_id,
+            content=tag,
+            annotation_type="tag",
+        )
+        async with self._session() as session:
+            session.add(annotation)
+            await session.commit()
 
     # ── Reporting ────────────────────────────────────────
 

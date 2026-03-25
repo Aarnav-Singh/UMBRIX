@@ -6,13 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type LiveEvent } from "@/lib/api/client";
 import { useLiveEvents } from "@/hooks/useLiveEvents";
 
-// Fallback data when backend is unreachable
-const FALLBACK_EVENTS = [
-    { event_id: "1", timestamp: new Date(Date.now() - 30_000).toISOString(), source_type: "suricata", severity: "critical", message: "Attack campaign escalating: CobaltStrike activity detected", action: "alert", meta_score: 0.92 },
-    { event_id: "2", timestamp: new Date(Date.now() - 120_000).toISOString(), source_type: "ml", severity: "high", message: "Adversarial signature blocked by ML guardrail", action: "block", meta_score: 0.78 },
-    { event_id: "3", timestamp: new Date(Date.now() - 900_000).toISOString(), source_type: "system", severity: "info", message: "Policy update pushed to 14 endpoints", action: "allow", meta_score: 0.1 },
-    { event_id: "4", timestamp: new Date(Date.now() - 3_600_000).toISOString(), source_type: "analyst", severity: "info", message: "Analyst J.D concluded investigation FND-874", action: "allow", meta_score: 0.0 },
-];
+
 
 function severityToType(severity: string): string {
     switch (severity) {
@@ -39,7 +33,7 @@ export function ActivityFeed() {
     const { data: events } = useQuery({
         queryKey: ["recentEvents"],
         queryFn: () => api.getRecentEvents(20),
-        placeholderData: FALLBACK_EVENTS,
+        placeholderData: [],
     });
 
     // Prepend new SSE events to the list
@@ -55,7 +49,7 @@ export function ActivityFeed() {
 
     useLiveEvents({ onEvent: handleLiveEvent });
 
-    const displayEvents = events ?? FALLBACK_EVENTS;
+    const displayEvents = events ?? [];
 
     const getIcon = (type: string) => {
         switch (type) {

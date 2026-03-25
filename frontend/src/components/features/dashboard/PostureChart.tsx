@@ -5,14 +5,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { useQuery } from "@tanstack/react-query";
 import { api, type PostureSnapshot } from "@/lib/api/client";
 
-// Fallback: deterministic data when backend is offline
-function generateFallback() {
-    const base = [78, 80, 79, 81, 83, 82, 80, 78, 76, 79, 81, 84, 86, 85, 83, 81, 80, 82, 85, 87, 86, 84, 83, 82];
-    return base.map((score, i) => ({
-        time: `${i}:00`,
-        score,
-    }));
-}
+
 
 export function PostureChart() {
     const { data: postureData } = useQuery({
@@ -27,7 +20,7 @@ export function PostureChart() {
                 score: s.score,
             }));
         }
-        return generateFallback();
+        return [];
     }, [postureData]);
 
     return (

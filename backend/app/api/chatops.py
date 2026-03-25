@@ -12,6 +12,8 @@ from fastapi import APIRouter, HTTPException, Request
 
 import structlog
 from app.config import settings
+from app.dependencies import get_app_engine, get_app_postgres
+from app.services.soar.engine import Playbook, Node
 
 logger = structlog.get_logger(__name__)
 
@@ -41,6 +43,48 @@ def verify_slack_signature(request: Request, raw_body: bytes) -> bool:
     ).hexdigest()
     
     return hmac.compare_digest(my_signature, slack_signature)
+
+
+async def _resume_soar_from_chatops(playbook_id: str, approval_id: str, decision: str, platform: str) -> dict:
+    """Shared logic for both Slack and Teams handlers to resume a SOAR playbook."""
+    engine = get_app_engine()
+    postgres = get_app_postgres()
+
+    paused = await postgres.get_paused_state(approval_id)
+    if not paused:
+        logger.warning("chatops_approval_not_found", approval_id=approval_id, platform=platform)
+        return {"status": "error", "message": f"No paused playbook for approval_id={approval_id}"}
+
+    playbook_model = await postgres.get_playbook(paused.playbook_id)
+    if not playbook_model:
+        logger.error("chatops_playbook_not_found", playbook_id=paused.playbook_id, platform=platform)
+        return {"status": "error", "message": f"Playbook {paused.playbook_id} not found"}
+
+    # Convert to domain model
+    nodes = [
+        Node(
+            id=n.get("id", "unknown"),
+            action_type=n.get("action_type", ""),
+            provider=n.get("provider", "unknown"),
+            params=n.get("params", {})
+        )
+        for n in playbook_model.nodes
+    ]
+    playbook = Playbook(id=playbook_model.id, name=playbook_model.name, nodes=nodes)
+
+    action = "approve" if decision in ("approve", "approved") else "reject"
+    result = await engine.resume_playbook(playbook, paused.paused_node_index, action)
+    await postgres.clear_paused_state(approval_id)
+
+    logger.info(
+        "chatops_soar_resumed",
+        platform=platform,
+        playbook=playbook_id,
+        approval=approval_id,
+        decision=action,
+        result_count=len(result),
+    )
+    return {"status": "success", "message": f"Playbook resumed via {platform}: {action}", "results": result}
 
 
 @router.post("/webhook/slack")
@@ -77,19 +121,7 @@ async def slack_interactive_webhook(request: Request):
     parts = value.split(":")
     if len(parts) == 3 and action_id in ("soar_approve", "soar_reject"):
         playbook_id, approval_id, decision = parts
-        logger.info(
-            "chatops_soar_decision_received", 
-            platform="slack",
-            playbook=playbook_id,
-            approval=approval_id,
-            decision=decision,
-            user=payload.get("user", {}).get("username")
-        )
-        
-        # In a real system, we'd trigger app.services.soar.resume_execution here
-        # For now, we simulate the internal state flip.
-        
-        return {"status": "success", "message": f"Recorded SOAR decision from Slack: {decision}"}
+        return await _resume_soar_from_chatops(playbook_id, approval_id, decision, "slack")
         
     return {"status": "ignored", "reason": "Unknown action"}
 
@@ -97,8 +129,6 @@ async def slack_interactive_webhook(request: Request):
 @router.post("/webhook/teams")
 async def teams_interactive_webhook(request: Request):
     """Receive Microsoft Teams actionable message responses."""
-    # Note: Teams uses a different auth mechanism (Bearer token matching a known bot ID)
-    # This is a simplified stub.
     try:
         payload = await request.json()
     except Exception:
@@ -111,13 +141,6 @@ async def teams_interactive_webhook(request: Request):
     approval_id = context.get("approval_id")
 
     if playbook_id and approval_id:
-        logger.info(
-            "chatops_soar_decision_received", 
-            platform="teams",
-            playbook=playbook_id,
-            approval=approval_id,
-            decision=decision
-        )
-        return {"status": "success", "message": f"Recorded SOAR decision from Teams: {decision}"}
+        return await _resume_soar_from_chatops(playbook_id, approval_id, decision, "teams")
 
     return {"status": "ignored", "reason": "Missing SOAR context"}

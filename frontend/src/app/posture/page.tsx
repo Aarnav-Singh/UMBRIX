@@ -72,34 +72,6 @@ interface HistoryResponse {
   data_points: HistoryPoint[];
 }
 
-// ─── Demo Fallbacks ──────────────────────────────────────
-
-const DEMO_SCORE: PostureScore = {
-  composite: 72,
-  domains: { endpoint: 76, network: 61, identity: 84, cloud: 68, data: 71 },
-  last_evaluated: Date.now() / 1000,
-};
-
-const DEMO_DOMAINS: PostureDomain[] = [
-  { id: 'endpoint', name: 'Endpoint Hygiene', weight: 0.25, score: 76, description: 'Device patch levels and EDR coverage', top_findings: ['Unpatched CVEs on 14 hosts', 'EDR not deployed on 3 servers'], trend: 'up' },
-  { id: 'network', name: 'Network Exposure', weight: 0.2, score: 61, description: 'Open ports, firewall rules, lateral paths', top_findings: ['SMBv1 enabled on legacy hosts', 'Overly permissive egress rules'], trend: 'down' },
-  { id: 'identity', name: 'Identity & Access', weight: 0.25, score: 84, description: 'MFA coverage, privilege sprawl, stale accounts', top_findings: ['3 accounts without MFA'], trend: 'stable' },
-  { id: 'cloud', name: 'Cloud Security', weight: 0.2, score: 68, description: 'Misconfigured S3, IAM over-permissions', top_findings: ['Public S3 bucket detected', 'Root credentials used recently'], trend: 'up' },
-  { id: 'data', name: 'Data Protection', weight: 0.1, score: 71, description: 'Encryption at rest and in transit', top_findings: ['TLS 1.0 still active on 2 services'], trend: 'stable' },
-];
-
-const DEMO_REMEDIATION: RemediationFinding[] = [
-  { id: 'R-001', domain: 'network', title: 'Disable SMBv1 Protocol', description: 'SMBv1 is vulnerable to EternalBlue. Disable on all legacy hosts.', severity: 'critical', effort: 'low', priority: 1, linked_campaigns: ['CAMPAIGN-004'], linked_techniques: ['T1021.002'], status: 'open' },
-  { id: 'R-002', domain: 'endpoint', title: 'Deploy EDR on 3 Production Servers', description: 'EDR agent missing on SRV-PROD-11, SRV-PROD-12, SRV-PROD-15.', severity: 'high', effort: 'medium', priority: 2, linked_campaigns: [], linked_techniques: ['T1059'], status: 'in_progress' },
-  { id: 'R-003', domain: 'cloud', title: 'Restrict S3 Bucket ACLs', description: 'Bucket sentinel-logs-archive is publicly readable.', severity: 'high', effort: 'low', priority: 3, linked_campaigns: [], linked_techniques: ['T1530'], status: 'open' },
-  { id: 'R-004', domain: 'identity', title: 'Enforce MFA for All Admin Accounts', description: '3 admin accounts missing MFA enrollment.', severity: 'medium', effort: 'low', priority: 4, linked_campaigns: [], linked_techniques: ['T1078'], status: 'open' },
-];
-
-const DEMO_HISTORY: HistoryPoint[] = Array.from({ length: 30 }, (_, i) => ({
-  date: new Date(Date.now() - (29 - i) * 86400000).toISOString().split('T')[0],
-  score: 60 + Math.round(Math.sin(i * 0.4) * 8 + i * 0.4),
-}));
-
 // ─── Sub-components ──────────────────────────────────────
 
 function ScoreGauge({ score }: { score: number }) {
@@ -248,11 +220,11 @@ export default function PosturePage() {
     '/api/proxy/api/v1/posture/history', fetcher, { refreshInterval: 60000 }
   );
 
-  const score = scoreData ?? DEMO_SCORE;
-  const domains = domainsData?.domains ?? DEMO_DOMAINS;
+  const score = scoreData ?? { composite: 0, domains: {}, last_evaluated: 0 };
+  const domains = domainsData?.domains ?? [];
   const tactics = coverageData?.tactics ?? [];
-  const findings = remediationData?.findings ?? DEMO_REMEDIATION;
-  const historyPoints = historyData?.data_points ?? DEMO_HISTORY;
+  const findings = remediationData?.findings ?? [];
+  const historyPoints = historyData?.data_points ?? [];
 
   const compositeScore = score.composite ?? 0;
   const scoreColor = compositeScore > 80 ? 'text-emerald-400' : compositeScore > 60 ? 'text-yellow-400' : 'text-red-400';
