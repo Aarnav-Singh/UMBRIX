@@ -135,6 +135,7 @@ htmlcov/
 .pyre/
 .pytest_cache/
 .ruff_cache/
+docs/
 
 # Agentic Metadata & internal notes
 agents.md
