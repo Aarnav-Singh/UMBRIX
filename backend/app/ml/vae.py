@@ -83,7 +83,7 @@ class VAEAnomalyDetector:
         self._loaded = True
 
     async def score(self, features: list[float]) -> float:
-        """Compute reconstruction error as anomaly score (0–1)."""
+        """Compute reconstruction error as anomaly score (0-1)."""
         if not self._loaded or self._model is None:
             return 0.0
 
@@ -91,11 +91,20 @@ class VAEAnomalyDetector:
         padded = (features + [0.0] * 128)[:128]
         x = torch.tensor([padded], dtype=torch.float32)
 
+        # Clamp input to prevent overflow in trained model forward pass
+        x = torch.clamp(x, -100.0, 100.0)
+
         self._model.eval()
         with torch.no_grad():
             recon, mu, logvar = self._model(x)
             # Reconstruction error (MSE normalized to 0-1)
             mse = torch.mean((x - recon) ** 2).item()
+
+            # Guard against NaN/Inf from extreme values
+            import math
+            if math.isnan(mse) or math.isinf(mse):
+                return 1.0  # Extreme anomaly
+
             score = min(mse / self._threshold, 1.0)
 
-        return score
+        return max(0.0, score)

@@ -108,8 +108,14 @@ class Settings(BaseSettings):
     okta_domain: str = ""   # e.g. "https://your-org.okta.com"
     okta_api_token: str = ""
 
+    # ── HashiCorp Vault ──────────────────────────────────
+    vault_url: str = ""
+    vault_token: str = ""
+    vault_mount_point: str = "secret"
+    vault_path: str = "data/sentinel"
+
     def model_post_init(self, __context) -> None:
-        """Validate security invariants on startup."""
+        """Validate security invariants and optionally load from Vault."""
         _INSECURE_SECRETS = {
             "CHANGE-ME-IN-PRODUCTION",
             "changeme",
@@ -117,6 +123,32 @@ class Settings(BaseSettings):
             "password",
             "",
         }
+        
+        # Load secrets from Vault if configured
+        if self.vault_url and self.vault_token:
+            try:
+                import hvac
+                client = hvac.Client(url=self.vault_url, token=self.vault_token)
+                if client.is_authenticated():
+                    resp = client.secrets.kv.v2.read_secret_version(
+                        path=self.vault_path,
+                        mount_point=self.vault_mount_point,
+                    )
+                    vault_secrets = resp.get("data", {}).get("data", {})
+                    # Overwrite matching fields in settings
+                    for k, v in vault_secrets.items():
+                        if hasattr(self, k):
+                            setattr(self, k, v)
+                else:
+                    import logging
+                    logging.getLogger(__name__).warning("Vault configured but authentication failed")
+            except ImportError:
+                import logging
+                logging.getLogger(__name__).error("Vault configured but 'hvac' library not installed")
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to load secrets from Vault: {e}")
+
         if self.environment != "development":
             if self.jwt_secret_key in _INSECURE_SECRETS:
                 raise RuntimeError(
@@ -131,6 +163,5 @@ class Settings(BaseSettings):
                     f"'{self.environment}' mode. Set CORS_ORIGINS to your actual domain(s).",
                     stacklevel=2,
                 )
-
 
 settings = Settings()

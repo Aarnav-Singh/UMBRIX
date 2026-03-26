@@ -144,3 +144,11 @@ history.md
 research.md
 .claude/
 .claude-plugin/
+
+# ML Model Artifacts & Training Data
+backend/models/*.pth
+backend/models/*.pkl
+backend/models/*.json
+backend/models/*.txt
+backend/data/training/
+!backend/models/.gitkeep

@@ -22,6 +22,7 @@ from app.middleware.security import SecurityHeadersMiddleware
 from app.middleware.csrf import CSRFMiddleware
 from app.middleware.metrics import setup_metrics
 from app.middleware.request_id import RequestIDMiddleware
+from app.middleware.tenant_isolation import TenantIsolationMiddleware
 
 from app.api import ingest, health, campaigns, posture, simulation, agents, soar, collaboration, chatops
 from app.api import pipeline_status, events_feed, findings, reporting, settings as settings_api, sigma_rules
@@ -216,11 +217,41 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """FastAPI Application Factory."""
+    openapi_tags = [
+        {"name": "auth", "description": "Authentication, MFA enrollment, and session management"},
+        {"name": "ingest", "description": "Event ingestion from Suricata, Zeek, Windows, CrowdStrike, Palo Alto, Syslog"},
+        {"name": "health", "description": "Health checks and system status"},
+        {"name": "campaigns", "description": "Threat campaign correlation and kill-chain tracking"},
+        {"name": "posture", "description": "Security posture scoring and compliance dashboards"},
+        {"name": "soar", "description": "SOAR playbook execution, conditional branching, and audit trail"},
+        {"name": "findings", "description": "Security findings and alert management"},
+        {"name": "sigma", "description": "Sigma detection rules management"},
+        {"name": "reporting", "description": "Compliance reports and executive summaries"},
+        {"name": "collaboration", "description": "Incident annotations, tagging, and team collaboration"},
+        {"name": "simulation", "description": "Attack simulation and red team tooling"},
+        {"name": "compliance", "description": "SOC 2 Type II audit trail and compliance status"},
+    ]
+
     app = FastAPI(
         title="Sentinel Fabric V2",
-        description="Security Posture Intelligence & ML Pipeline",
+        description=(
+            "Enterprise Security Posture Intelligence Platform. "
+            "Real-time ML-powered threat detection, SOAR orchestration, "
+            "campaign correlation, and SOC 2 Type II compliant audit trails."
+        ),
         version=settings.version,
         lifespan=lifespan,
+        openapi_tags=openapi_tags,
+        license_info={
+            "name": "Proprietary",
+            "url": "https://sentinelfabric.io/license",
+        },
+        contact={
+            "name": "Sentinel Fabric Security Team",
+            "email": "security@sentinelfabric.io",
+        },
+        docs_url="/docs",
+        redoc_url="/redoc",
     )
 
     # Prometheus Metrics
@@ -228,6 +259,9 @@ def create_app() -> FastAPI:
 
     # Security Headers
     app.add_middleware(SecurityHeadersMiddleware)
+    
+    # Tenant Isolation — extracts tenant_id from JWT into ContextVar
+    app.add_middleware(TenantIsolationMiddleware)
     
     # CSRF Protection
     app.add_middleware(CSRFMiddleware)
@@ -269,6 +303,10 @@ def create_app() -> FastAPI:
     app.include_router(soar.router, prefix="/api/v1")
     app.include_router(collaboration.router, prefix="/api/v1")
     app.include_router(chatops.router, prefix="/api/v1")
+    
+    # Compliance API (SOC 2 audit trail + status)
+    from app.api.compliance import router as compliance_router
+    app.include_router(compliance_router, prefix="/api/v1")
 
     # Tenant-scoped SSE stream
     @app.get("/api/v1/events/stream")

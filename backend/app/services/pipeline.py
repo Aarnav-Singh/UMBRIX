@@ -26,6 +26,7 @@ from app.engine.ioc_feed_manager import IOCFeedManager
 from app.engine.narrative import NarrativeEngine, LLMNarrativeEngine
 from app.engine.decision_engine import DecisionEngine
 from app.engine.compliance import ComplianceMapper
+from app.engine.entity_resolution import EntityResolver
 from app.ml.ensemble import EnsembleClassifier
 from app.ml.vae import VAEAnomalyDetector
 from app.ml.hst import HSTAnomalyDetector
@@ -74,13 +75,14 @@ class PipelineService:
         self._hst = HSTAnomalyDetector()
         self._temporal = TemporalAnomalyDetector()
         self._adversarial = AdversarialDetector()
-        self._meta = MetaLearner()
+        self._meta = MetaLearner(postgres=postgres)
 
         # Initialize engine components
         self._sigma = SigmaEngine()
         self._ioc = IOCStore(feed_manager=feed_manager)
         self._feed_manager = feed_manager
         self._compliance = ComplianceMapper()
+        self._entity_resolver = EntityResolver(redis=redis)
 
         # Agentic RAG Orchestrator
         from app.engine.rag_retriever import RagRetriever
@@ -108,6 +110,7 @@ class PipelineService:
         # Load stubs (will load real weights when available)
         import os
         models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "models")
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "training")
         
         self._ensemble.load_models()
         self._vae.load_model(os.path.join(models_dir, "vae.pth") if os.path.exists(os.path.join(models_dir, "vae.pth")) else None)
@@ -115,9 +118,21 @@ class PipelineService:
         self._adversarial.load_model(os.path.join(models_dir, "llm_fingerprint.pth") if os.path.exists(os.path.join(models_dir, "llm_fingerprint.pth")) else None)
         self._meta.load_model(os.path.join(models_dir, "meta_learner.txt") if os.path.exists(os.path.join(models_dir, "meta_learner.txt")) else None)
 
+        # Phase 22C: Seed HST from training data to solve cold-start
+        training_csv = os.path.join(data_dir, "cicids2017_combined.csv")
+        if os.path.exists(training_csv):
+            self._hst.seed_from_aggregate_stats(data_path=training_csv)
+        else:
+            self._hst.seed_from_aggregate_stats()  # Falls back to synthetic baseline
+
         # Pipeline metrics
         self._events_processed = 0
         self._total_duration_ms = 0.0
+
+    @property
+    def meta_learner(self) -> MetaLearner:
+        """Expose meta-learner for verdict API weight updates."""
+        return self._meta
 
     @property
     def events_processed(self) -> int:
@@ -147,6 +162,12 @@ class PipelineService:
         
         def _record_step(name: str, step_start: float):
             PIPELINE_STEP_LATENCY.labels(step_name=name).observe(time.perf_counter() - step_start)
+
+        # Step 0.5: Entity resolution (Phase 22D)
+        try:
+            await self._entity_resolver.enrich_event(event, event.metadata.tenant_id)
+        except Exception as e:
+            logger.debug("entity_resolution_skipped", error=str(e))
 
         # Step 1: Build feature vector
         s_step = time.perf_counter()

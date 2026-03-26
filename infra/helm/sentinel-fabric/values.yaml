@@ -1,0 +1,149 @@
+# Sentinel Fabric V2 — Helm Values
+# Override these in your environment-specific values file.
+
+# ── Global ────────────────────────────────────────────
+global:
+  environment: production
+  imagePullPolicy: IfNotPresent
+
+# ── Backend API ───────────────────────────────────────
+backend:
+  image:
+    repository: sentinel-fabric/backend
+    tag: "2.0.0"
+  replicas: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    ENVIRONMENT: production
+    LOG_LEVEL: INFO
+    REDIS_HOST: redis
+    CLICKHOUSE_HOST: clickhouse
+    POSTGRES_HOST: postgres
+    QDRANT_HOST: qdrant
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  # Vault integration (if enabled)
+  vault:
+    enabled: false
+    url: ""
+    mountPoint: secret
+    path: data/sentinel
+
+# ── Frontend ─────────────────────────────────────────
+frontend:
+  image:
+    repository: sentinel-fabric/frontend
+    tag: "2.0.0"
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  service:
+    type: ClusterIP
+    port: 3000
+
+# ── ClickHouse ───────────────────────────────────────
+clickhouse:
+  enabled: true
+  image:
+    repository: clickhouse/clickhouse-server
+    tag: "24"
+  storage:
+    size: 50Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+
+# ── Redis ────────────────────────────────────────────
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+  maxMemory: 512mb
+  storage:
+    size: 5Gi
+    storageClass: ""
+
+# ── PostgreSQL ───────────────────────────────────────
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  storage:
+    size: 20Gi
+    storageClass: ""
+  auth:
+    database: sentinel
+    username: sentinel
+    # Set via --set or secrets
+    password: ""
+
+# ── Kafka ────────────────────────────────────────────
+kafka:
+  enabled: true
+  image:
+    repository: apache/kafka
+    tag: "3.7.0"
+  storage:
+    size: 20Gi
+    storageClass: ""
+
+# ── Qdrant ───────────────────────────────────────────
+qdrant:
+  enabled: true
+  image:
+    repository: qdrant/qdrant
+    tag: "v1.9.0"
+  storage:
+    size: 10Gi
+    storageClass: ""
+
+# ── Ingress ──────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+  hosts:
+    - host: sentinel.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls:
+    - secretName: sentinel-tls
+      hosts:
+        - sentinel.example.com
+
+# ── Monitoring ───────────────────────────────────────
+monitoring:
+  prometheus:
+    enabled: true
+    scrapeInterval: 15s
+  grafana:
+    enabled: true
+    adminPassword: ""

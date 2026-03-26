@@ -139,6 +139,10 @@ async def action_finding(
         scores_to_use = body.stream_scores or [0.5, 0.5, 0.5, 0.5, 0.5]
         try:
             pipeline.meta_learner.update_weights(ml_verdict, scores_to_use)
+            # Persist updated weights to PostgreSQL (Phase 22B)
+            await pipeline.meta_learner.persist_weights(
+                tenant_id=claims.get("tenant_id", "default")
+            )
             logger.info("meta_learner_weights_tuned", finding_id=finding_id, verdict=ml_verdict)
         except Exception as exc:
             logger.error("meta_learner_tuning_failed", error=str(exc))

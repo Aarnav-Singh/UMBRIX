@@ -50,10 +50,23 @@ class ThreatIntelFetcher:
             for attr in attributes:
                 ioc_value = attr.get("value")
                 ioc_type = attr.get("type")
-                cache_key = f"ioc:misp:{ioc_type}:{ioc_value}"
+                cache_type = {"ip-dst": "ip", "ip-src": "ip", "domain": "domain", 
+                              "md5": "hash", "sha256": "hash"}.get(ioc_type, "other")
+                
+                if cache_type == "other":
+                    continue
+
+                ioc_data = {
+                    "type": "threat_intel",
+                    "threat": "MISP Attribute",
+                    "confidence": 0.85,
+                    "source": "misp",
+                }
+                cache_key = f"ioc:{cache_type}:{ioc_value}"
+                import json
                 await self.redis.cache_set(
                     cache_key,
-                    str({"source": url, "timestamp": datetime.utcnow().isoformat()}),
+                    json.dumps(ioc_data),
                     ttl=86400 * 7,
                 )
 
@@ -96,9 +109,19 @@ class ThreatIntelFetcher:
                 else:
                     value = ind.get("id", "")
                     cache_type = "other"
+                    
+                if cache_type == "other":
+                    continue
 
-                cache_key = f"ioc:taxii:{collection_id}:{value}"
-                await self.redis.cache_set(cache_key, pattern, ttl=86400 * 7)
+                ioc_data = {
+                    "type": "threat_intel",
+                    "threat": f"TAXII Collection: {collection_id}",
+                    "confidence": 0.8,
+                    "source": "taxii",
+                }
+                cache_key = f"ioc:{cache_type}:{value}"
+                import json
+                await self.redis.cache_set(cache_key, json.dumps(ioc_data), ttl=86400 * 7)
 
             return len(indicators)
         except httpx.HTTPError as exc:

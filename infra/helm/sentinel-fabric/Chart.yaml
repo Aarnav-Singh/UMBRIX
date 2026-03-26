@@ -1,0 +1,15 @@
+apiVersion: v2
+name: sentinel-fabric
+description: Sentinel Fabric V2 — Enterprise Security Posture Intelligence Platform
+type: application
+version: 1.0.0
+appVersion: "2.0.0"
+keywords:
+  - security
+  - siem
+  - soar
+  - ml
+  - threat-detection
+maintainers:
+  - name: Sentinel Fabric Team
+    email: security@sentinelfabric.io

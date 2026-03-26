@@ -50,6 +50,8 @@ class UserRecord(Base):
     role: Mapped[str] = mapped_column(String(32), default="analyst")
     display_name: Mapped[Optional[str]] = mapped_column(String(128))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    mfa_secret: Mapped[Optional[str]] = mapped_column(String(32))
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class AnalystVerdict(Base):
@@ -104,6 +106,19 @@ class PausedPlaybookState(Base):
     created_at: Mapped[Optional[str]] = mapped_column(DateTime, server_default=func.now())
 
 
+class SoarAuditTrail(Base):
+    __tablename__ = "soar_audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    playbook_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    node_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    action_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    timestamp: Mapped[Optional[str]] = mapped_column(DateTime, server_default=func.now())
+
+
 class IncidentAnnotation(Base):
     __tablename__ = "incident_annotations"
 
@@ -125,6 +140,24 @@ class ReportMetadata(Base):
     generated_by: Mapped[str] = mapped_column(String(36), nullable=False)
     file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[Optional[str]] = mapped_column(DateTime, server_default=func.now())
+
+
+class MetaLearnerWeights(Base):
+    """Persisted meta-learner fusion weights.
+
+    Single-row table keyed by tenant_id. Updated on every analyst
+    verdict to ensure weights survive service restarts.
+    """
+    __tablename__ = "meta_learner_weights"
+
+    tenant_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    weight_ensemble: Mapped[float] = mapped_column(Float, default=0.25)
+    weight_vae: Mapped[float] = mapped_column(Float, default=0.20)
+    weight_hst: Mapped[float] = mapped_column(Float, default=0.15)
+    weight_temporal: Mapped[float] = mapped_column(Float, default=0.20)
+    weight_adversarial: Mapped[float] = mapped_column(Float, default=0.20)
+    verdicts_processed: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[Optional[str]] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
 # ── Repository ───────────────────────────────────────────
@@ -189,6 +222,15 @@ class PostgresRepository:
         async with self._session() as session:
             session.add(user)
             await session.commit()
+
+    async def update_user_mfa(self, email: str, secret: Optional[str], enabled: bool) -> None:
+        async with self._session() as session:
+            result = await session.execute(select(UserRecord).where(UserRecord.email == email))
+            user = result.scalar_one_or_none()
+            if user:
+                user.mfa_secret = secret
+                user.mfa_enabled = enabled
+                await session.commit()
 
     # ── Verdicts ─────────────────────────────────────────
 
@@ -343,6 +385,21 @@ class PostgresRepository:
                 await session.delete(state)
                 await session.commit()
 
+    # ── SOAR Audit Trail ─────────────────────────────────
+
+    async def save_soar_audit_log(self, playbook_id: str, node_id: str, action_type: str, provider: str, status: str, params: dict) -> None:
+        log_entry = SoarAuditTrail(
+            playbook_id=playbook_id,
+            node_id=node_id,
+            action_type=action_type,
+            provider=provider,
+            status=status,
+            params=params,
+        )
+        async with self._session() as session:
+            session.add(log_entry)
+            await session.commit()
+
     # ── Collaboration Persistence ───────────────────────
 
     async def save_incident_annotation(self, incident_id: str, user_id: str, content: str) -> None:
@@ -383,3 +440,52 @@ class PostgresRepository:
                 .limit(limit)
             )
             return list(result.scalars().all())
+
+    # -- Meta-Learner Weights ────────────────────────────
+
+    async def load_meta_learner_weights(self, tenant_id: str = "default") -> Optional[list[float]]:
+        """Load persisted meta-learner weights for a tenant."""
+        async with self._session() as session:
+            result = await session.execute(
+                select(MetaLearnerWeights).where(MetaLearnerWeights.tenant_id == tenant_id)
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                return [
+                    row.weight_ensemble,
+                    row.weight_vae,
+                    row.weight_hst,
+                    row.weight_temporal,
+                    row.weight_adversarial,
+                ]
+        return None
+
+    async def save_meta_learner_weights(
+        self, weights: list[float], verdicts_processed: int, tenant_id: str = "default"
+    ) -> None:
+        """Upsert meta-learner weights for a tenant."""
+        assert len(weights) == 5, f"Expected 5 weights, got {len(weights)}"
+        async with self._session() as session:
+            result = await session.execute(
+                select(MetaLearnerWeights).where(MetaLearnerWeights.tenant_id == tenant_id)
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                row.weight_ensemble = weights[0]
+                row.weight_vae = weights[1]
+                row.weight_hst = weights[2]
+                row.weight_temporal = weights[3]
+                row.weight_adversarial = weights[4]
+                row.verdicts_processed = verdicts_processed
+            else:
+                session.add(MetaLearnerWeights(
+                    tenant_id=tenant_id,
+                    weight_ensemble=weights[0],
+                    weight_vae=weights[1],
+                    weight_hst=weights[2],
+                    weight_temporal=weights[3],
+                    weight_adversarial=weights[4],
+                    verdicts_processed=verdicts_processed,
+                ))
+            await session.commit()
+        logger.info("meta_learner_weights_persisted", tenant_id=tenant_id, weights=weights)
