@@ -20,8 +20,8 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-# Default weights before any analyst feedback
-DEFAULT_WEIGHTS = [0.25, 0.20, 0.15, 0.20, 0.20]
+# Default weights tuned to favor Ensemble and HST over currently non-functional Deep Learning streams
+DEFAULT_WEIGHTS = [0.55, 0.05, 0.30, 0.05, 0.05]
 
 
 class MetaLearner:

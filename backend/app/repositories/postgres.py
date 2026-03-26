@@ -52,6 +52,7 @@ class UserRecord(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     mfa_secret: Mapped[Optional[str]] = mapped_column(String(32))
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    mfa_backup_codes: Mapped[Optional[str]] = mapped_column(JSON, default=None)  # JSON array of bcrypt-hashed codes
 
 
 class AnalystVerdict(Base):
@@ -231,6 +232,32 @@ class PostgresRepository:
                 user.mfa_secret = secret
                 user.mfa_enabled = enabled
                 await session.commit()
+
+    async def save_backup_codes(self, email: str, hashed_codes: list[str]) -> None:
+        """Persist bcrypt-hashed MFA backup codes for a user."""
+        async with self._session() as session:
+            result = await session.execute(select(UserRecord).where(UserRecord.email == email))
+            user = result.scalar_one_or_none()
+            if user:
+                user.mfa_backup_codes = hashed_codes
+                await session.commit()
+
+    async def consume_backup_code(self, email: str, plain_code: str) -> bool:
+        """Verify and consume a single backup code. Returns True on success."""
+        import bcrypt as _bcrypt
+        async with self._session() as session:
+            result = await session.execute(select(UserRecord).where(UserRecord.email == email))
+            user = result.scalar_one_or_none()
+            if not user or not user.mfa_backup_codes:
+                return False
+            codes: list[str] = list(user.mfa_backup_codes)
+            for i, hashed in enumerate(codes):
+                if _bcrypt.checkpw(plain_code.encode("utf-8"), hashed.encode("utf-8")):
+                    codes.pop(i)
+                    user.mfa_backup_codes = codes
+                    await session.commit()
+                    return True
+            return False
 
     # ── Verdicts ─────────────────────────────────────────
 

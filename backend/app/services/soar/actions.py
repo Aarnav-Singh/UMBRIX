@@ -173,7 +173,7 @@ class PaloAltoProvider(ActionProvider):
 
         try:
             base = f"https://{settings.paloalto_host}/api"
-            async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+            async with httpx.AsyncClient(verify=settings.paloalto_verify_ssl, timeout=30.0) as client:
                 # 1. Create the address object
                 addr_xpath = (
                     f"/config/devices/entry[@name='localhost.localdomain']"
@@ -230,7 +230,7 @@ class PaloAltoProvider(ActionProvider):
 
         try:
             base = f"https://{settings.paloalto_host}/api"
-            async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+            async with httpx.AsyncClient(verify=settings.paloalto_verify_ssl, timeout=30.0) as client:
                 addr_xpath = (
                     f"/config/devices/entry[@name='localhost.localdomain']"
                     f"/vsys/entry[@name='vsys1']/address/entry[@name='sentinel-{ip}']"
@@ -419,6 +419,182 @@ class ApprovalProvider(ActionProvider):
 
 
 # ---------------------------------------------------------------------------
+# ServiceNow  (REST Table API via httpx)
+# ---------------------------------------------------------------------------
+class ServiceNowProvider(ActionProvider):
+    """ServiceNow incident and ticket management.
+
+    Requires env vars:
+      SERVICENOW_INSTANCE  — e.g. "your-instance.service-now.com"
+      SERVICENOW_USERNAME  — API user
+      SERVICENOW_PASSWORD  — API password
+    """
+    name = "ServiceNow"
+
+    def _is_configured(self) -> bool:
+        return bool(
+            getattr(settings, "servicenow_instance", "")
+            and getattr(settings, "servicenow_username", "")
+            and getattr(settings, "servicenow_password", "")
+        )
+
+    async def execute(self, action_type: str, context: Dict[str, Any]) -> str:
+        if action_type == "create_incident":
+            return await self._create_incident(context)
+        if action_type == "update_incident":
+            return await self._update_incident(context)
+        logger.error(f"[SOAR] [ServiceNow] Unknown action type {action_type}")
+        return "failed"
+
+    async def _create_incident(self, context: Dict[str, Any]) -> str:
+        short_desc = context.get("short_description", "Sentinel Fabric — Security Incident")
+        description = context.get("description", "")
+        urgency = context.get("urgency", "2")  # 1=High, 2=Medium, 3=Low
+        impact = context.get("impact", "2")
+        category = context.get("category", "Security")
+
+        if not self._is_configured():
+            logger.warning(f"[SOAR] [ServiceNow] MOCK — Would create incident: {short_desc}")
+            return "success"
+
+        try:
+            url = f"https://{settings.servicenow_instance}/api/now/table/incident"
+            auth = (settings.servicenow_username, settings.servicenow_password)
+            payload = {
+                "short_description": short_desc,
+                "description": description,
+                "urgency": urgency,
+                "impact": impact,
+                "category": category,
+                "caller_id": context.get("caller_id", ""),
+                "assignment_group": context.get("assignment_group", ""),
+            }
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(url, json=payload, auth=auth, headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                })
+            if resp.status_code in (200, 201):
+                ticket_number = resp.json().get("result", {}).get("number", "unknown")
+                logger.info(f"[SOAR] [ServiceNow] Incident created: {ticket_number}")
+                context["ticket_number"] = ticket_number
+                return "success"
+            logger.error(f"[SOAR] [ServiceNow] Create failed: {resp.status_code} {resp.text}")
+            return "failed"
+        except Exception as exc:
+            logger.exception(f"[SOAR] [ServiceNow] Error: {exc}")
+            return "failed"
+
+    async def _update_incident(self, context: Dict[str, Any]) -> str:
+        sys_id = context.get("sys_id", "")
+        if not sys_id:
+            logger.error("[SOAR] [ServiceNow] Missing sys_id for update")
+            return "failed"
+
+        if not self._is_configured():
+            logger.warning(f"[SOAR] [ServiceNow] MOCK — Would update incident {sys_id}")
+            return "success"
+
+        try:
+            url = f"https://{settings.servicenow_instance}/api/now/table/incident/{sys_id}"
+            auth = (settings.servicenow_username, settings.servicenow_password)
+            update_fields = {k: v for k, v in context.items() if k not in ("sys_id",)}
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.patch(url, json=update_fields, auth=auth, headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                })
+            return "success" if resp.status_code == 200 else "failed"
+        except Exception as exc:
+            logger.exception(f"[SOAR] [ServiceNow] Error: {exc}")
+            return "failed"
+
+
+# ---------------------------------------------------------------------------
+# AWS Security Group  (boto3 SDK)
+# ---------------------------------------------------------------------------
+class AWSSecurityProvider(ActionProvider):
+    """AWS Security Group and IAM integration.
+
+    Requires env vars:
+      AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY
+      AWS_DEFAULT_REGION
+    Or an IAM role attached to the pod (preferred).
+    """
+    name = "AWS"
+
+    def _is_configured(self) -> bool:
+        try:
+            import boto3
+            boto3.client("sts").get_caller_identity()
+            return True
+        except Exception:
+            return False
+
+    async def execute(self, action_type: str, context: Dict[str, Any]) -> str:
+        if action_type == "revoke_security_group_ingress":
+            return await self._revoke_sg_ingress(context)
+        if action_type == "isolate_instance":
+            return await self._isolate_instance(context)
+        logger.error(f"[SOAR] [AWS] Unknown action type {action_type}")
+        return "failed"
+
+    async def _revoke_sg_ingress(self, context: Dict[str, Any]) -> str:
+        """Revoke an IP's ingress from a VPC Security Group."""
+        sg_id = context.get("security_group_id", "")
+        ip = context.get("ip", "")
+        if not sg_id or not ip:
+            logger.error("[SOAR] [AWS] Missing security_group_id or ip")
+            return "failed"
+
+        if not self._is_configured():
+            logger.warning(f"[SOAR] [AWS] MOCK — Would revoke {ip} from SG {sg_id}")
+            return "success"
+
+        try:
+            import boto3
+            ec2 = boto3.client("ec2")
+            ec2.revoke_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=[{
+                    "IpProtocol": "-1",
+                    "IpRanges": [{"CidrIp": f"{ip}/32", "Description": "Revoked by Sentinel SOAR"}],
+                }],
+            )
+            logger.info(f"[SOAR] [AWS] Revoked {ip}/32 ingress from SG {sg_id}")
+            return "success"
+        except Exception as exc:
+            logger.exception(f"[SOAR] [AWS] Error: {exc}")
+            return "failed"
+
+    async def _isolate_instance(self, context: Dict[str, Any]) -> str:
+        """Replace an EC2 instance's SGs with an isolation (deny-all) SG."""
+        instance_id = context.get("instance_id", "")
+        isolation_sg = context.get("isolation_security_group_id", "")
+        if not instance_id or not isolation_sg:
+            logger.error("[SOAR] [AWS] Missing instance_id or isolation_security_group_id")
+            return "failed"
+
+        if not self._is_configured():
+            logger.warning(f"[SOAR] [AWS] MOCK — Would isolate instance {instance_id}")
+            return "success"
+
+        try:
+            import boto3
+            ec2 = boto3.client("ec2")
+            ec2.modify_instance_attribute(
+                InstanceId=instance_id,
+                Groups=[isolation_sg],
+            )
+            logger.info(f"[SOAR] [AWS] Instance {instance_id} isolated with SG {isolation_sg}")
+            return "success"
+        except Exception as exc:
+            logger.exception(f"[SOAR] [AWS] Error: {exc}")
+            return "failed"
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 class ActionRegistry:
@@ -427,8 +603,11 @@ class ActionRegistry:
         "crowdstrike": CrowdStrikeProvider(),
         "okta": OktaProvider(),
         "approval": ApprovalProvider(),
+        "servicenow": ServiceNowProvider(),
+        "aws": AWSSecurityProvider(),
     }
 
     @classmethod
     def get_provider(cls, name: str) -> ActionProvider | None:
         return cls.providers.get(name)
+

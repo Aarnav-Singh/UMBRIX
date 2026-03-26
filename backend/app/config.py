@@ -103,10 +103,17 @@ class Settings(BaseSettings):
     # Palo Alto Networks PAN-OS
     paloalto_host: str = ""
     paloalto_api_key: str = ""
+    paloalto_verify_ssl: bool = True
+
 
     # Okta
     okta_domain: str = ""   # e.g. "https://your-org.okta.com"
     okta_api_token: str = ""
+
+    # ServiceNow
+    servicenow_instance: str = ""  # e.g. "your-instance.service-now.com"
+    servicenow_username: str = ""
+    servicenow_password: str = ""
 
     # ── HashiCorp Vault ──────────────────────────────────
     vault_url: str = ""

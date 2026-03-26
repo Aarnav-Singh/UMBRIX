@@ -1,0 +1,183 @@
+# Sentinel Fabric V2 — Zero-Trust NetworkPolicies
+# Default deny-all + explicit allow rules per component tier.
+
+# ── Default Deny All Ingress & Egress ────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-default-deny
+  labels:
+    app: sentinel-fabric
+spec:
+  podSelector:
+    matchLabels:
+      app: sentinel-fabric
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# ── Backend: Accept from frontend + ingress, reach data tier ──
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-backend-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: sentinel-fabric
+      component: backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from frontend pods
+    - from:
+        - podSelector:
+            matchLabels:
+              app: sentinel-fabric
+              component: frontend
+      ports:
+        - port: 8000
+          protocol: TCP
+    # Allow from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 8000
+          protocol: TCP
+  egress:
+    # DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentinel-fabric
+              component: postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+    # Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentinel-fabric
+              component: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    # ClickHouse
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentinel-fabric
+              component: clickhouse
+      ports:
+        - port: 8123
+          protocol: TCP
+        - port: 9000
+          protocol: TCP
+    # Kafka
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentinel-fabric
+              component: kafka
+      ports:
+        - port: 9092
+          protocol: TCP
+    # Qdrant
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentinel-fabric
+              component: qdrant
+      ports:
+        - port: 6333
+          protocol: TCP
+        - port: 6334
+          protocol: TCP
+    # External SOAR providers (CrowdStrike, Palo Alto, Okta) + Vault
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+
+---
+# ── Frontend: Accept from ingress, reach backend only ─────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-frontend-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: sentinel-fabric
+      component: frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 3000
+          protocol: TCP
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Backend API only
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentinel-fabric
+              component: backend
+      ports:
+        - port: 8000
+          protocol: TCP
+
+---
+# ── Data Tier: Only accept from backend ───────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-data-tier-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: sentinel-fabric
+      component: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: sentinel-fabric
+              component: backend
+      ports:
+        - port: 5432
+          protocol: TCP

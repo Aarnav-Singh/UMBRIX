@@ -146,4 +146,16 @@ monitoring:
     scrapeInterval: 15s
   grafana:
     enabled: true
+    # Password is injected via External Secrets Operator (ESO).
+    # Do NOT set a plaintext password here. Use Vault.
     adminPassword: ""
+
+# ── External Secrets Operator (ESO) ─────────────────
+# When enabled, secrets are synced from HashiCorp Vault
+# into K8s Secrets automatically, replacing static values.
+externalSecrets:
+  enabled: false
+  vaultUrl: ""
+  vaultMountPoint: secret
+  vaultPath: data/sentinel
+  vaultRole: sentinel-fabric

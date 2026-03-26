@@ -65,15 +65,19 @@ async def login(
         AuditLogger.log("login_disabled", request=request, detail=f"user={req.username}")
         raise HTTPException(status_code=401, detail="User account is disabled")
 
-    # MFA Validation
+    # MFA Validation (TOTP or backup code)
     if user.mfa_enabled:
         if not req.mfa_code:
             raise HTTPException(status_code=401, detail="mfa_required")
         import pyotp
         totp = pyotp.TOTP(user.mfa_secret)
         if not totp.verify(req.mfa_code):
-            AuditLogger.log("login_mfa_failed", request=request, detail=f"user={req.username}")
-            raise HTTPException(status_code=401, detail="Invalid MFA code")
+            # Fallback: try consuming a one-time backup code
+            backup_ok = await postgres.consume_backup_code(email=req.username, plain_code=req.mfa_code)
+            if not backup_ok:
+                AuditLogger.log("login_mfa_failed", request=request, detail=f"user={req.username}")
+                raise HTTPException(status_code=401, detail="Invalid MFA code")
+            AuditLogger.log("login_via_backup_code", request=request, detail=f"user={req.username}")
 
     token = create_access_token(
         subject=user.email,
@@ -111,14 +115,19 @@ async def enable_mfa(
 class MFAVerifyRequest(BaseModel):
     mfa_code: str
 
-@router.post("/verify-mfa-setup")
+class MFAVerifyResponse(BaseModel):
+    status: str
+    message: str
+    backup_codes: list[str] | None = None
+
+@router.post("/verify-mfa-setup", response_model=MFAVerifyResponse)
 async def verify_mfa_setup(
     req: MFAVerifyRequest,
     request: Request,
     claims: dict = Depends(require_auth),
     postgres = Depends(get_app_postgres)
 ):
-    """Verify the generated TOTP secret and enable MFA permanently."""
+    """Verify the generated TOTP secret, enable MFA, and return 10 one-time backup codes."""
     user = await postgres.get_user_by_email(claims["sub"])
     if not user or not user.mfa_secret:
         raise HTTPException(status_code=400, detail="MFA setup not initiated.")
@@ -130,6 +139,17 @@ async def verify_mfa_setup(
         raise HTTPException(status_code=400, detail="Invalid code.")
         
     await postgres.update_user_mfa(email=claims["sub"], secret=user.mfa_secret, enabled=True)
-    AuditLogger.log("mfa_enabled_successfully", request=request, claims=claims)
-    return {"status": "success", "message": "MFA enabled"}
+
+    # Generate 10 one-time backup codes
+    import secrets as _secrets
+    plain_codes = [_secrets.token_hex(4).upper() for _ in range(10)]
+    hashed_codes = [bcrypt.hashpw(c.encode("utf-8"), bcrypt.gensalt()).decode("utf-8") for c in plain_codes]
+    await postgres.save_backup_codes(email=claims["sub"], hashed_codes=hashed_codes)
+
+    AuditLogger.log("mfa_enabled_with_backup_codes", request=request, claims=claims)
+    return MFAVerifyResponse(
+        status="success",
+        message="MFA enabled. Save these backup codes — they will not be shown again.",
+        backup_codes=plain_codes,
+    )
 
