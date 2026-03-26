@@ -119,11 +119,32 @@ class RedisStore:
         self._lua_update_entity_sha: Optional[str] = None
 
     async def connect(self) -> None:
-        self._pool = aioredis.from_url(
-            settings.redis_url,
-            decode_responses=True,
-            max_connections=50,
-        )
+        if settings.redis_cluster_mode:
+            from redis.asyncio.cluster import RedisCluster
+            self._pool = RedisCluster.from_url(
+                settings.redis_url,
+                decode_responses=True,
+            )
+        elif settings.redis_sentinel_hosts:
+            from redis.asyncio.sentinel import Sentinel
+            sentinels = []
+            for h in settings.redis_sentinel_hosts:
+                parts = h.split(":")
+                port = int(parts[1]) if len(parts) > 1 else 26379
+                sentinels.append((parts[0], port))
+            
+            sentinel_client = Sentinel(sentinels, socket_timeout=0.2)
+            self._pool = sentinel_client.master_for(
+                settings.redis_sentinel_master,
+                decode_responses=True,
+                max_connections=50,
+            )
+        else:
+            self._pool = aioredis.from_url(
+                settings.redis_url,
+                decode_responses=True,
+                max_connections=50,
+            )
         await self._pool.ping()
         logger.info("redis_connected", url=settings.redis_url)
 

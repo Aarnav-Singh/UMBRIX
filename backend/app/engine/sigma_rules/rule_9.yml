@@ -1,0 +1,21 @@
+title: Network Connection to Unusual Port
+description: Detects internal hosts connecting to non-standard external ports often
+  used by C2
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    dst_port:
+    - 4444
+    - 8888
+    - 9999
+    - 1337
+    - 31337
+  condition: selection
+level: high
+status: experimental
+id: 73c7acf5-ff70-4131-b092-a2ff4246383c
+tags:
+- attack.synthetic
+author: System

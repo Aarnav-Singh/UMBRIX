@@ -142,6 +142,20 @@ class ReportMetadata(Base):
     file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[Optional[str]] = mapped_column(DateTime, server_default=func.now())
 
+class RegisteredAsset(Base):
+    __tablename__ = "registered_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    asset_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    criticality_score: Mapped[float] = mapped_column(Float, default=0.5)
+    created_at: Mapped[Optional[str]] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[Optional[str]] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_registered_assets_name", "tenant_id", "asset_name", unique=True),
+    )
+
 
 class MetaLearnerWeights(Base):
     """Persisted meta-learner fusion weights.
@@ -191,6 +205,22 @@ class PostgresRepository:
     async def close(self) -> None:
         if self._engine:
             await self._engine.dispose()
+
+    async def reload_pool(self) -> None:
+        """Gracefully recycle the connection pool upon DSN changes."""
+        logger.info("postgres_reloading_pool")
+        old_engine = self._engine
+        
+        self._engine = create_async_engine(
+            settings.postgres_dsn,
+            echo=settings.debug,
+            pool_size=10,
+            max_overflow=20,
+        )
+        self._session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
+        
+        if old_engine:
+            await old_engine.dispose()
 
     def _session(self) -> AsyncSession:
         assert self._session_factory, "PostgreSQL not initialized"

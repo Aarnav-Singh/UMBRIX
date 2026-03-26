@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     redis_host: str = "localhost"
     redis_port: int = 6379
+    redis_sentinel_hosts: list[str] = []
+    redis_sentinel_master: str = "mymaster"
+    redis_cluster_mode: bool = False
 
     # ── PostgreSQL ───────────────────────────────────────
     postgres_dsn: str = "postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinel"
@@ -105,21 +108,26 @@ class Settings(BaseSettings):
     paloalto_api_key: str = ""
     paloalto_verify_ssl: bool = True
 
-
     # Okta
     okta_domain: str = ""   # e.g. "https://your-org.okta.com"
     okta_api_token: str = ""
 
-    # ServiceNow
-    servicenow_instance: str = ""  # e.g. "your-instance.service-now.com"
-    servicenow_username: str = ""
+    # ── ServiceNow CMDB ──────────────────────────────────
+    servicenow_instance: str = ""  # e.g. "https://your-org.service-now.com"
+    servicenow_user: str = ""
     servicenow_password: str = ""
+
+    # ── ChatOps / Notifications ──────────────────────────
+    slack_bot_token: str = ""
+    slack_webhook_url: str = ""
+    teams_webhook_url: str = ""
 
     # ── HashiCorp Vault ──────────────────────────────────
     vault_url: str = ""
     vault_token: str = ""
+    vault_path: str = "sentinel"
     vault_mount_point: str = "secret"
-    vault_path: str = "data/sentinel"
+    vault_rotation_interval: int = 900  # seconds
 
     def model_post_init(self, __context) -> None:
         """Validate security invariants and optionally load from Vault."""
@@ -130,7 +138,7 @@ class Settings(BaseSettings):
             "password",
             "",
         }
-        
+
         # Load secrets from Vault if configured
         if self.vault_url and self.vault_token:
             try:
@@ -170,5 +178,44 @@ class Settings(BaseSettings):
                     f"'{self.environment}' mode. Set CORS_ORIGINS to your actual domain(s).",
                     stacklevel=2,
                 )
+
+    async def start_vault_polling(self, interval_seconds: int = 900) -> None:
+        """Background task to periodically refresh Vault secrets."""
+        import asyncio
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if not self.vault_url or not self.vault_token:
+            return
+
+        while True:
+            await asyncio.sleep(interval_seconds)
+            try:
+                import hvac
+                client = hvac.Client(url=self.vault_url, token=self.vault_token)
+                if client.is_authenticated():
+                    resp = client.secrets.kv.v2.read_secret_version(
+                        path=self.vault_path,
+                        mount_point=self.vault_mount_point,
+                    )
+                    vault_secrets = resp.get("data", {}).get("data", {})
+
+                    changed = False
+                    for k, v in vault_secrets.items():
+                        if hasattr(self, k) and getattr(self, k) != v:
+                            setattr(self, k, v)
+                            changed = True
+
+                    if changed:
+                        logger.info("vault_secrets_rotated")
+                        try:
+                            from app.dependencies import get_app_postgres
+                            db = get_app_postgres()
+                            if db:
+                                await db.reload_pool()
+                        except AssertionError:
+                            pass
+            except Exception as e:
+                logger.error(f"Failed to poll secrets from Vault: {e}")
 
 settings = Settings()

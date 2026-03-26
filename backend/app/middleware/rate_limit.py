@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import time
 from fastapi import Request, HTTPException, status
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.responses import JSONResponse
 from app.config import settings
 from app.repositories.redis_store import RedisStore
 import structlog
@@ -19,7 +21,8 @@ class RateLimiter:
         self, 
         request: Request, 
         limit: int = 10, 
-        window_seconds: int = 60
+        window_seconds: int = 60,
+        identifier: str | None = None
     ) -> None:
         """Check if the rate limit is exceeded for a given client IP.
         
@@ -32,8 +35,8 @@ class RateLimiter:
             # Optionally skip in dev, but for Phase 4 we want it active.
             pass
 
-        client_ip = request.client.host if request.client else "unknown"
-        key = f"rate_limit:{request.url.path}:{client_ip}"
+        key_id = identifier or (request.client.host if request.client else "unknown")
+        key = f"rate_limit:{request.url.path}:{key_id}"
         now = time.time()
         
         # Use a Redis sorted set for the sliding window
@@ -67,3 +70,31 @@ class RateLimiter:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Rate limiting service temporarily unavailable. Request denied.",
             )
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Global middleware enforcing rate limits across all /api/ paths."""
+    
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith("/api/"):
+            try:
+                from app.dependencies import get_app_ratelimiter
+                # We can import here to avoid circular imports during startup
+                from app.middleware.tenant_isolation import get_tenant
+                
+                limiter = get_app_ratelimiter()
+                # Determine tenant or fallback to IP
+                try:
+                    tenant_id = get_tenant()
+                    identifier = f"tenant:{tenant_id}"
+                except LookupError:
+                    identifier = f"ip:{request.client.host if request.client else 'unknown'}"
+                
+                # Global limit: 100 requests per sliding minute window per tenant/IP
+                await limiter.check_rate_limit(request, limit=100, window_seconds=60, identifier=identifier)
+            except HTTPException as e:
+                return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
+            except Exception as e:
+                logger.error("rate_limit_middleware_error", error=str(e))
+                # Proceed on unexpected errors if not explicitly denied by limiter
+        
+        return await call_next(request)

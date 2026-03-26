@@ -1,0 +1,15 @@
+title: Synthetic Detection Rule 15
+description: Auto-generated Sigma YAML rule for synthetic coverage testing (15/23)
+logsource:
+  category: synthetic_events
+  product: any
+detection:
+  selection:
+    action: synthetic_malicious_action_15
+  condition: selection
+level: medium
+status: experimental
+id: 93f4858d-0e8f-4d38-8f7a-2ea4dffb1940
+tags:
+- attack.synthetic
+author: System

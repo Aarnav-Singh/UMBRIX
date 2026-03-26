@@ -145,21 +145,21 @@ def _generate_synthetic_cicids(output_path: Path) -> Path:
     import pandas as pd
 
     rng = np.random.RandomState(42)
-    n_total = 50_000
+    n_total = 80_000
     records = []
 
-    # Class distribution (approximating CIC-IDS-2017)
+    # Class distribution (approximating CIC-IDS-2017 but tuned for weak classes)
     class_dist = {
-        "benign": 0.60,
+        "benign": 0.54,
         "dos": 0.12,
-        "ddos": 0.08,
+        "ddos": 0.06,
         "brute_force": 0.05,
         "port_scan": 0.05,
         "web_attack": 0.03,
         "botnet": 0.02,
-        "infiltration": 0.02,
-        "exploits": 0.01,
-        "sql_injection": 0.01,
+        "infiltration": 0.04,
+        "exploits": 0.04,
+        "sql_injection": 0.04,
         "reconnaissance": 0.01,
     }
 
@@ -201,7 +201,7 @@ def _generate_class_features(label: str, rng: np.random.RandomState) -> dict:
         f["Average Packet Size"] = rng.exponential(200)
         f["Fwd IAT Mean"] = rng.exponential(100000)
 
-    elif label in ("dos", "ddos"):
+    elif label == "dos":
         f["Source Port"] = rng.randint(1024, 65535)
         f["Destination Port"] = rng.choice([80, 443, 53])
         f["Total Length of Fwd Packets"] = rng.exponential(50000)
@@ -219,6 +219,26 @@ def _generate_class_features(label: str, rng: np.random.RandomState) -> dict:
         f["Bwd Header Length"] = rng.poisson(20)
         f["Average Packet Size"] = rng.exponential(100)
         f["Fwd IAT Mean"] = rng.exponential(500)
+
+    elif label == "ddos":
+        f["Source Port"] = rng.randint(1024, 65535)
+        f["Destination Port"] = rng.choice([80, 443])
+        # DDoS typically has even higher rates, tiny IAT, and more extreme packets/s
+        f["Total Length of Fwd Packets"] = rng.exponential(80000)
+        f["Total Length of Bwd Packets"] = rng.exponential(200)
+        f["Total Fwd Packets"] = rng.poisson(1500) + 500
+        f["Total Backward Packets"] = rng.poisson(5)
+        f["Flow Duration"] = rng.exponential(500000)
+        f["Flow Bytes/s"] = rng.exponential(2000000)
+        f["Flow Packets/s"] = rng.exponential(20000)  
+        f["Flow IAT Mean"] = rng.exponential(50)  
+        f["Flow IAT Std"] = rng.exponential(10)
+        f["Flow IAT Max"] = rng.exponential(500)
+        f["Flow IAT Min"] = rng.exponential(0.1)
+        f["Fwd Header Length"] = rng.poisson(100) + 20
+        f["Bwd Header Length"] = rng.poisson(10)
+        f["Average Packet Size"] = rng.exponential(50)
+        f["Fwd IAT Mean"] = rng.exponential(50)
 
     elif label == "brute_force":
         f["Source Port"] = rng.randint(1024, 65535)
@@ -258,7 +278,7 @@ def _generate_class_features(label: str, rng: np.random.RandomState) -> dict:
         f["Average Packet Size"] = rng.exponential(40)
         f["Fwd IAT Mean"] = rng.exponential(1000)
 
-    elif label in ("web_attack", "sql_injection"):
+    elif label == "web_attack":
         f["Source Port"] = rng.randint(1024, 65535)
         f["Destination Port"] = rng.choice([80, 443, 8080])
         f["Total Length of Fwd Packets"] = rng.exponential(5000)  # larger payloads
@@ -272,10 +292,67 @@ def _generate_class_features(label: str, rng: np.random.RandomState) -> dict:
         f["Flow IAT Std"] = rng.exponential(100000)
         f["Flow IAT Max"] = rng.exponential(1000000)
         f["Flow IAT Min"] = rng.exponential(100)
-        f["Fwd Header Length"] = rng.poisson(200) + 100  # large headers (injections)
-        f["Bwd Header Length"] = rng.poisson(100) + 50
-        f["Average Packet Size"] = rng.exponential(500)
+        f["Fwd Header Length"] = rng.poisson(100) + 50
+        f["Bwd Header Length"] = rng.poisson(50) + 20
+        f["Average Packet Size"] = rng.exponential(300)
         f["Fwd IAT Mean"] = rng.exponential(200000)
+
+    elif label == "sql_injection":
+        f["Source Port"] = rng.randint(1024, 65535)
+        f["Destination Port"] = rng.choice([80, 443, 8080])
+        f["Total Length of Fwd Packets"] = rng.exponential(8000)  # larger payloads, high payload entropy
+        f["Total Length of Bwd Packets"] = rng.exponential(2000)
+        f["Total Fwd Packets"] = rng.poisson(5) + 1  # burst short connections
+        f["Total Backward Packets"] = rng.poisson(5) + 1
+        f["Flow Duration"] = rng.exponential(500000)
+        f["Flow Bytes/s"] = rng.exponential(50000)
+        f["Flow Packets/s"] = rng.exponential(500)
+        f["Flow IAT Mean"] = rng.exponential(50000)
+        f["Flow IAT Std"] = rng.exponential(20000)
+        f["Flow IAT Max"] = rng.exponential(100000)
+        f["Flow IAT Min"] = rng.exponential(10)
+        f["Fwd Header Length"] = rng.poisson(300) + 150  # URI anomaly, very large headers
+        f["Bwd Header Length"] = rng.poisson(100) + 50
+        f["Average Packet Size"] = rng.exponential(1000)
+        f["Fwd IAT Mean"] = rng.exponential(50000)
+
+    elif label == "infiltration":
+        f["Source Port"] = rng.randint(1024, 65535)
+        f["Destination Port"] = rng.choice([53, 443, 80])  # often masks as DNS/HTTPS
+        f["Total Length of Fwd Packets"] = rng.exponential(200)  # low byte counts
+        f["Total Length of Bwd Packets"] = rng.exponential(100)
+        f["Total Fwd Packets"] = rng.poisson(3) + 1
+        f["Total Backward Packets"] = rng.poisson(2) + 1
+        f["Flow Duration"] = rng.exponential(20000000)  # very long dwell time
+        f["Flow Bytes/s"] = rng.exponential(50)
+        f["Flow Packets/s"] = rng.exponential(1)
+        f["Flow IAT Mean"] = rng.exponential(5000000)  # C2 callback timing pattern (high gap)
+        f["Flow IAT Std"] = rng.exponential(100)  # Regular beaconing (low jitter)
+        f["Flow IAT Max"] = rng.exponential(5100000)
+        f["Flow IAT Min"] = rng.exponential(4900000)
+        f["Fwd Header Length"] = rng.poisson(40) + 20
+        f["Bwd Header Length"] = rng.poisson(40) + 20
+        f["Average Packet Size"] = rng.exponential(50)
+        f["Fwd IAT Mean"] = rng.exponential(5000000)
+
+    elif label == "exploits":
+        f["Source Port"] = rng.randint(1024, 65535)
+        f["Destination Port"] = rng.choice([445, 135, 139, 3389, 22])  # known port patterns
+        f["Total Length of Fwd Packets"] = rng.exponential(1000)
+        f["Total Length of Bwd Packets"] = rng.exponential(100)
+        f["Total Fwd Packets"] = rng.poisson(50) + 10  # SYN flood signatures
+        f["Total Backward Packets"] = rng.poisson(2)
+        f["Flow Duration"] = rng.exponential(100000)
+        f["Flow Bytes/s"] = rng.exponential(100000)
+        f["Flow Packets/s"] = rng.exponential(5000)
+        f["Flow IAT Mean"] = rng.exponential(1000)
+        f["Flow IAT Std"] = rng.exponential(500)
+        f["Flow IAT Max"] = rng.exponential(5000)
+        f["Flow IAT Min"] = rng.exponential(1)
+        f["Fwd Header Length"] = rng.poisson(100) + 20
+        f["Bwd Header Length"] = rng.poisson(20)
+        f["Average Packet Size"] = rng.exponential(20)
+        f["Fwd IAT Mean"] = rng.exponential(1000)
 
     else:
         # infiltration, botnet, exploits, reconnaissance, etc.
@@ -412,12 +489,20 @@ def train_ensemble(X_train: np.ndarray, y_train: np.ndarray) -> None:
     from sklearn.ensemble import RandomForestClassifier
 
     logger.info("training_random_forest", n_samples=len(X_train))
+    
+    label_to_idx = {cls: i for i, cls in enumerate(ATTACK_CLASSES)}
+    class_weights = {i: 1.0 for i in range(len(ATTACK_CLASSES))}
+    class_weights[label_to_idx["infiltration"]] = 3.0
+    class_weights[label_to_idx["exploits"]] = 3.0
+    class_weights[label_to_idx["sql_injection"]] = 3.0
+    class_weights[label_to_idx["ddos"]] = 3.0
+
     rf = RandomForestClassifier(
         n_estimators=100,
         max_depth=12,
         min_samples_split=5,
         min_samples_leaf=2,
-        class_weight="balanced",
+        class_weight=class_weights,
         random_state=42,
         n_jobs=-1,
     )
@@ -559,7 +644,11 @@ def evaluate_models(X_test: np.ndarray, y_test: np.ndarray) -> dict:
             y_proba = model.predict(dtest)
             y_pred = np.argmax(y_proba, axis=1)
 
-            auc = roc_auc_score(y_test, y_proba, multi_class="ovr", average="weighted")
+            try:
+                auc = roc_auc_score(y_test, y_proba, multi_class="ovr", average="weighted",
+                                    labels=np.arange(len(ATTACK_CLASSES)))
+            except ValueError:
+                auc = 0.0
             precision, recall, f1, _ = precision_recall_fscore_support(
                 y_test, y_pred, average="weighted", zero_division=0
             )

@@ -180,14 +180,21 @@ async def lifespan(app: FastAPI):
         broadcaster=broadcaster,
     )
 
+    # Start Vault background polling for runtime secret rotation
+    asyncio.create_task(settings.start_vault_polling())
+
     # 3. Start background consumers and schedulers (if infra is healthy)
     if ch_ok and redis_ok:
         logger.info("starting_infrastructure_consumers")
         from app.consumers.event_consumer import EventConsumer
         
-        # Start Automated Threat Hunting Scheduler
+        # Start Background Schedulers
         if pg_ok and qdrant_ok:
             start_hunter_scheduler()
+        
+        if pg_ok:
+            from app.services.compliance import start_compliance_scheduler
+            start_compliance_scheduler()
         
         # Check Kafka port (9092) first
         if await _port_open("localhost", 9092):
@@ -260,6 +267,10 @@ def create_app() -> FastAPI:
     # Security Headers
     app.add_middleware(SecurityHeadersMiddleware)
     
+    # API Rate Limiter — must run after TenantIsolationMiddleware
+    from app.middleware.rate_limit import RateLimitMiddleware
+    app.add_middleware(RateLimitMiddleware)
+    
     # Tenant Isolation — extracts tenant_id from JWT into ContextVar
     app.add_middleware(TenantIsolationMiddleware)
     
@@ -307,6 +318,10 @@ def create_app() -> FastAPI:
     # Compliance API (SOC 2 audit trail + status)
     from app.api.compliance import router as compliance_router
     app.include_router(compliance_router, prefix="/api/v1")
+
+    # Asset Management API (CMDB registration)
+    from app.api.assets import router as assets_router
+    app.include_router(assets_router, prefix="/api/v1")
 
     # Tenant-scoped SSE stream
     @app.get("/api/v1/events/stream")

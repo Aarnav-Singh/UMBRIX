@@ -1,0 +1,15 @@
+title: Synthetic Detection Rule 22
+description: Auto-generated Sigma YAML rule for synthetic coverage testing (22/23)
+logsource:
+  category: synthetic_events
+  product: any
+detection:
+  selection:
+    action: synthetic_malicious_action_22
+  condition: selection
+level: low
+status: experimental
+id: 3a16d8c1-32fe-4754-acd1-8bd4569b3596
+tags:
+- attack.synthetic
+author: System

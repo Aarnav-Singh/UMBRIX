@@ -58,6 +58,8 @@ class SigmaRule:
         self.raw_yaml = raw_yaml
         self.enabled = True
         self.imported_at = datetime.utcnow().isoformat()
+        self.match_count = 0
+        self.last_matched_at = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -75,6 +77,8 @@ class SigmaRule:
             "falsepositives": self.falsepositives,
             "enabled": self.enabled,
             "imported_at": self.imported_at,
+            "match_count": self.match_count,
+            "last_matched_at": self.last_matched_at,
         }
 
 
@@ -86,13 +90,17 @@ class SigmaConditionCompiler:
         """Convert a Sigma selection block into a flat filter dict.
 
         Sigma selections use field|modifier syntax. We translate common
-        modifiers into a normalized filter representation.
+        modifiers into a normalized filter representation. Supports 'not field'.
         """
         filters: dict[str, Any] = {}
         for key, value in selection.items():
-            parts = key.split("|")
-            field_name = parts[0]
-            modifier = parts[1] if len(parts) > 1 else "equals"
+            if str(key).startswith("not "):
+                field_name = key[4:].strip()
+                modifier = "not"
+            else:
+                parts = key.split("|")
+                field_name = parts[0]
+                modifier = parts[1] if len(parts) > 1 else "equals"
 
             filters[field_name] = {
                 "modifier": modifier,
@@ -237,6 +245,8 @@ class SigmaImporter:
         matches: list[SigmaRule] = []
         for rule_id, rule in self._rules.items():
             if rule.enabled and self.evaluate(rule_id, event):
+                rule.match_count += 1
+                rule.last_matched_at = datetime.utcnow().isoformat()
                 matches.append(rule)
         return matches
 
@@ -271,6 +281,9 @@ class SigmaImporter:
 
             if modifier == "equals":
                 if event_value not in values:
+                    return False
+            elif modifier == "not":
+                if event_value in values:
                     return False
             elif modifier == "contains":
                 if not any(str(v).lower() in str(event_value).lower() for v in values):

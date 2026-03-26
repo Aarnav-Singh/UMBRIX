@@ -1,0 +1,17 @@
+title: Registry Run Key Modification
+description: Detects persistence via Run/RunOnce registry keys
+logsource:
+  category: registry_event
+  product: windows
+detection:
+  selection:
+    TargetObject|contains:
+    - \CurrentVersion\Run
+    - \CurrentVersion\RunOnce
+  condition: selection
+level: medium
+status: experimental
+id: f4091db9-3ada-4d7e-9903-c70a445a7ea8
+tags:
+- attack.synthetic
+author: System

@@ -278,8 +278,8 @@ class PipelineService:
         # Step 5: Update entity state in Redis
         await self._update_entity_state(event)
 
-        # Step 6: Risk model recalculation
-        self._apply_risk_model(event, entity_state)
+        # Step 6: Risk model recalculation (dynamic criticality via AssetInventory)
+        await self._apply_risk_model(event, entity_state)
 
         # Step 7: Posture delta computation
         event.posture_delta = compute_posture_delta(
@@ -422,14 +422,25 @@ class PipelineService:
         if campaign_id:
             event.campaign_id = campaign_id
 
-    def _apply_risk_model(self, event: CanonicalEvent, entity_state: dict | None) -> None:
-        """Step 6: Risk model recalculation."""
+    async def _apply_risk_model(self, event: CanonicalEvent, entity_state: dict | None) -> None:
+        """Step 6: Risk model recalculation using AssetInventory."""
+        from app.engine.asset_inventory import AssetInventory
+        
         asset_crit = 0.5
         if event.source_entity:
-            asset_crit = event.source_entity.asset_criticality
+            # Dynamic lookup of asset criticality
+            asset_crit = await AssetInventory.get_criticality(
+                tenant_id=event.metadata.tenant_id,
+                asset_ref=event.source_entity.identifier
+            )
+            event.source_entity.asset_criticality = asset_crit
+            
         event_count = (entity_state or {}).get("event_count", 0)
-        compute_risk_score(
+        risk_score = compute_risk_score(
             meta_score=event.ml_scores.meta_score,
             asset_criticality=asset_crit,
             entity_event_count=event_count,
         )
+        
+        # Option: You could assign the risk_score onto the event here if there is a slot for it
+        # For now, it delegates to compute_risk_score which matches original capability

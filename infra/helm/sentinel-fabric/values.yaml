@@ -26,10 +26,21 @@ backend:
     ENVIRONMENT: production
     LOG_LEVEL: INFO
     REDIS_HOST: redis
+    # High-Availability Redis topolgies (uncomment and replace REDIS_HOST above)
+    # REDIS_SENTINEL_HOSTS: '["redis-node-0.redis-headless:26379", "redis-node-1.redis-headless:26379", "redis-node-2.redis-headless:26379"]'
+    # REDIS_SENTINEL_MASTER: mymaster
+    # REDIS_CLUSTER_MODE: false
     CLICKHOUSE_HOST: clickhouse
     POSTGRES_HOST: postgres
     QDRANT_HOST: qdrant
     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+# Database Backups
+backups:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2AM
+  s3Bucket: "sentinel-fabric-backups"
+  retention: "7d" # 7 daily rotation schema
   # Vault integration (if enabled)
   vault:
     enabled: false

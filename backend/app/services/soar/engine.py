@@ -7,6 +7,7 @@ on high-level directives.
 import uuid
 import logging
 import json
+import asyncio
 from typing import Dict, Any, List, Optional
 
 from jinja2 import Template
@@ -62,7 +63,7 @@ class ExecutionEngine:
         self._postgres = repo
 
     async def execute_action(self, action_type: str, provider_name: str, context: Dict[str, Any]) -> str:
-        """Executes an action via the specified provider."""
+        """Executes an action via the specified provider with retries."""
         if provider_name == "builtin" and action_type == "conditional":
             # the wrapper logic handles conditionals, so just return
             return "completed"
@@ -73,14 +74,34 @@ class ExecutionEngine:
             return "error_provider_missing"
 
         logger.info(f"[SOAR] Invoking {provider_name} for {action_type}")
-        try:
-            status = await provider.execute(action_type, context)
-            if status == "failed":
-                logger.error(f"[SOAR] Provider {provider_name} failed to execute {action_type}")
-            return status
-        except Exception as e:
-            logger.exception(f"[SOAR] Exception in {provider_name} executing {action_type}: {e}")
-            return f"error_exception"
+        
+        max_retries = 2
+        base_backoff = 5.0
+        
+        for attempt in range(max_retries + 1):
+            try:
+                status = await provider.execute(action_type, context)
+                if status == "success" or status == "pending_approval":
+                    return status
+                    
+                if status == "failed":
+                    logger.error(f"[SOAR] Provider {provider_name} failed to execute {action_type} (attempt {attempt + 1})")
+                
+                # If we're on the last attempt, return the status
+                if attempt == max_retries:
+                    return status
+                    
+            except Exception as e:
+                logger.exception(f"[SOAR] Exception in {provider_name} executing {action_type} (attempt {attempt + 1}): {e}")
+                if attempt == max_retries:
+                    return "error_exception"
+            
+            # Backoff before retry
+            wait_time = base_backoff * (2 ** attempt)
+            logger.info(f"[SOAR] Retrying {provider_name}.{action_type} in {wait_time}s...")
+            await asyncio.sleep(wait_time)
+            
+        return "failed"
 
     async def execute_playbook(self, playbook: Playbook, event_context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Orchestrates the execution of multiple nodes with templating and branching."""

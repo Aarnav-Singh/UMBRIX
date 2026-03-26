@@ -1,0 +1,15 @@
+title: Synthetic Detection Rule 21
+description: Auto-generated Sigma YAML rule for synthetic coverage testing (21/23)
+logsource:
+  category: synthetic_events
+  product: any
+detection:
+  selection:
+    action: synthetic_malicious_action_21
+  condition: selection
+level: medium
+status: experimental
+id: 19fedcb0-f1fc-459d-936d-5fa668c49adf
+tags:
+- attack.synthetic
+author: System

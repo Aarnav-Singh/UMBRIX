@@ -57,7 +57,7 @@ class EventConsumer:
             bootstrap_servers=settings.kafka_bootstrap_servers,
             group_id=settings.kafka_consumer_group,
             auto_offset_reset="latest",
-            enable_auto_commit=True,
+            enable_auto_commit=False,
             value_deserializer=lambda v: v.decode("utf-8"),
         )
         self._dlq_producer = AIOKafkaProducer(
@@ -101,6 +101,7 @@ class EventConsumer:
             try:
                 event = parser.parse(raw_log)
                 await self._pipeline.process(event)
+                await self._consumer.commit()
             except ValueError as exc:
                 logger.warning("parse_failed", topic=topic, error=str(exc))
                 await self._send_to_dlq(topic, raw_log, str(exc))

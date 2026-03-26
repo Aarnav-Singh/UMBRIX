@@ -1,0 +1,21 @@
+title: System Information Discovery
+description: Detects common reconnaissance commands (whoami, systeminfo, ipconfig,
+  netstat)
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  recon_cmds:
+    Image|endswith:
+    - \whoami.exe
+    - \systeminfo.exe
+    - \ipconfig.exe
+    - \netstat.exe
+    - \tasklist.exe
+  condition: recon_cmds
+level: low
+status: stable
+id: cbef1d40-69a3-4bcc-a602-3183cb47b2d6
+tags:
+- attack.synthetic
+author: System

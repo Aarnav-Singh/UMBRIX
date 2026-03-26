@@ -1,0 +1,22 @@
+title: PowerShell Download Cradle
+description: Detects powershell.exe downloading content from the internet
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith:
+    - \powershell.exe
+    - \pwsh.exe
+    CommandLine|contains:
+    - Net.WebClient
+    - DownloadString
+    - Invoke-WebRequest
+  condition: selection
+level: high
+status: stable
+id: c3c5f676-f446-4f51-8370-9df43fce6fa4
+tags:
+- attack.execution
+- attack.t1059
+author: System

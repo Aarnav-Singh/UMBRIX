@@ -18,6 +18,7 @@ from typing import Dict, Any
 import httpx
 
 from app.config import settings
+from app.services.soar.notification_providers import SlackActionProvider, TeamsActionProvider
 
 logger = logging.getLogger(__name__)
 
@@ -605,6 +606,8 @@ class ActionRegistry:
         "approval": ApprovalProvider(),
         "servicenow": ServiceNowProvider(),
         "aws": AWSSecurityProvider(),
+        "slack": SlackActionProvider(),
+        "teams": TeamsActionProvider(),
     }
 
     @classmethod

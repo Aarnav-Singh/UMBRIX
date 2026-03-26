@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Optional
+import uuid
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -66,6 +67,7 @@ def create_access_token(
     """Issue a new JWT."""
     now = datetime.now(timezone.utc)
     claims = {
+        "jti": str(uuid.uuid4()),
         "sub": subject,
         "tenant_id": tenant_id,
         "role": role,
@@ -105,7 +107,20 @@ async def require_auth(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing authorization header",
         )
-    return decode_token(credentials.credentials)
+    claims = decode_token(credentials.credentials)
+    
+    jti = claims.get("jti")
+    if jti:
+        from app.dependencies import get_app_redis
+        redis = get_app_redis()
+        is_blocked = await redis.cache_get(f"blocked_jti:{jti}")
+        if is_blocked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+            )
+            
+    return claims
 
 
 def require_role(minimum_role: Role):

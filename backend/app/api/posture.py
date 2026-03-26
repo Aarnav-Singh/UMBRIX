@@ -288,3 +288,51 @@ async def trigger_posture_scan(claims: dict = Depends(require_admin)):
         "estimated_completion_seconds": 45,
         "message": "Posture evaluation started. Results refresh within 60 seconds.",
     }
+
+
+from pydantic import BaseModel
+
+class AssetRegistrationRequest(BaseModel):
+    asset_name: str
+    criticality_score: float
+
+@router.post("/assets/register")
+async def register_fallback_asset(
+    req: AssetRegistrationRequest,
+    claims: dict = Depends(require_admin)
+):
+    """Seed the PostgreSQL fallback registry for an asset."""
+    from app.repositories.postgres import RegisteredAsset
+    from sqlalchemy.exc import IntegrityError
+    
+    tenant_id = claims.get("tenant_id", "default")
+    db = get_app_postgres()
+    
+    asset = RegisteredAsset(
+        tenant_id=tenant_id,
+        asset_name=req.asset_name,
+        criticality_score=float(req.criticality_score)
+    )
+    
+    try:
+        async with db._session() as session:
+            session.add(asset)
+            await session.commit()
+    except IntegrityError:
+        async with db._session() as session:
+            from sqlalchemy import select
+            result = await session.execute(
+                select(RegisteredAsset).where(
+                    RegisteredAsset.tenant_id == tenant_id,
+                    RegisteredAsset.asset_name == req.asset_name
+                )
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                existing.criticality_score = req.criticality_score
+                await session.commit()
+            
+    from app.engine.asset_inventory import AssetInventory
+    await AssetInventory.set_criticality(tenant_id, req.asset_name, req.criticality_score)
+    
+    return {"status": "registered", "asset": req.asset_name, "criticality": req.criticality_score}

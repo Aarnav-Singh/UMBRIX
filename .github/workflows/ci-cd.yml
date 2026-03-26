@@ -14,6 +14,21 @@ jobs:
   # ── Stage 1: Lint & Test ───────────────────────────
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sentinel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     defaults:
       run:
         working-directory: backend
@@ -33,6 +48,11 @@ jobs:
 
       - name: Run linter
         run: python -m py_compile app/main.py
+
+      - name: Verify DB Migrations (Alembic)
+        env:
+          POSTGRES_DSN: "postgresql://postgres:postgres@localhost:5432/sentinel"
+        run: alembic upgrade head
 
       - name: Run tests
         env:

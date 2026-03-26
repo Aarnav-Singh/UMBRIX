@@ -1,0 +1,21 @@
+title: Suspicious File Execution from Temp
+description: Detects executables running from temporary directories
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_path:
+    Image|contains:
+    - \Temp\
+    - \AppData\Local\Temp\
+  not_whitelist:
+    not Image:
+    - \Temp\updater.exe
+    - \Temp\legit.exe
+  condition: selection_path and not not_whitelist
+level: medium
+status: experimental
+id: ce396a9f-56b1-4262-a27e-775ab99b5bd8
+tags:
+- attack.synthetic
+author: System

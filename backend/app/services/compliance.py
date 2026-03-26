@@ -226,3 +226,37 @@ class ComplianceService:
             purged = result.rowcount
             logger.info("retention_purge_completed", purged_rows=purged, cutoff=cutoff.isoformat())
             return purged
+
+
+# ── Scheduled Jobs ───────────────────────────────────────
+
+async def _run_retention_job():
+    """Wrapper to instantiate service and run retention purge."""
+    try:
+        from app.dependencies import get_app_postgres
+        postgres = get_app_postgres()
+        if not postgres or not postgres._session_factory:
+            logger.error("retention_job_failed", reason="Postgres not available")
+            return
+        service = ComplianceService(session_factory=postgres._session_factory)
+        await service.enforce_retention(retention_days=90)
+    except Exception as exc:
+        logger.exception("retention_job_error", error=str(exc))
+
+def start_compliance_scheduler():
+    """Start an APScheduler background job to enforce SOC 2 data retention daily."""
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            _run_retention_job,
+            "cron",
+            hour=0,
+            minute=0, # Daily at midnight
+            id="compliance_retention_purge",
+            replace_existing=True
+        )
+        scheduler.start()
+        logger.info("compliance_scheduler_started", schedule="daily at 00:00")
+    except Exception as exc:
+        logger.error("compliance_scheduler_failed_to_start", error=str(exc))

@@ -1,0 +1,21 @@
+title: Suspicious RDP Connection Inbound
+description: Detects inbound RDP from external IP ranges
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    dst_port: 3389
+    action: allow
+  not_internal:
+    not src_ip|startswith:
+    - '10.'
+    - 192.168.
+    - 172.16.
+  condition: selection and not_internal
+level: medium
+status: experimental
+id: 2748bad5-0f2c-4ec2-b8d3-e2ab7a270253
+tags:
+- attack.synthetic
+author: System

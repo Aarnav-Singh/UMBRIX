@@ -1,0 +1,15 @@
+title: Synthetic Detection Rule 14
+description: Auto-generated Sigma YAML rule for synthetic coverage testing (14/23)
+logsource:
+  category: synthetic_events
+  product: any
+detection:
+  selection:
+    action: synthetic_malicious_action_14
+  condition: selection
+level: low
+status: experimental
+id: 12cdccf8-a56b-458b-b22e-bba2d9bffd6f
+tags:
+- attack.synthetic
+author: System

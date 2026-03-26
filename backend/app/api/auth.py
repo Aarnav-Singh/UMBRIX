@@ -17,7 +17,7 @@ from app.middleware.auth import (
     Role,
     AuditLogger,
 )
-from app.dependencies import get_app_postgres, get_app_ratelimiter
+from app.dependencies import get_app_postgres, get_app_ratelimiter, get_app_redis
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -152,4 +152,27 @@ async def verify_mfa_setup(
         message="MFA enabled. Save these backup codes — they will not be shown again.",
         backup_codes=plain_codes,
     )
+
+@router.post("/logout")
+async def logout(
+    request: Request,
+    claims: dict = Depends(require_auth),
+):
+    """Invalidate the current session by blocklisting the JWT."""
+    jti = claims.get("jti")
+    if jti:
+        exp = claims.get("exp")
+        ttl = 3600
+        if exp:
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc).timestamp()
+            ttl = max(1, int(exp - now))
+            
+        redis = get_app_redis()
+        await redis.cache_set(f"blocked_jti:{jti}", "1", ttl=ttl)
+        
+        AuditLogger.log("logout_success", request=request, claims=claims)
+        
+    return {"status": "ok", "message": "Successfully logged out"}
+
 
