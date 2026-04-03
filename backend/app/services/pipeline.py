@@ -355,9 +355,17 @@ class PipelineService:
         # Step 11: Store processed event in ClickHouse
         await self._ch.insert_event(event)
 
-        # Step 12: Broadcast via SSE
+        # Step 12: Broadcast via SSE (through Redis Pub/Sub to reach API container)
         event_json = event.model_dump(mode="json")
-        await self._sse.broadcast(event_json)
+        try:
+            if hasattr(self._redis, '_client') and self._redis._client:
+                import json
+                await self._redis._client.publish("live_events", json.dumps(event_json, default=str))
+            else:
+                await self._sse.broadcast(event_json)
+        except Exception as e:
+            logger.warning("redis_pubsub_publish_failed_fallback_to_local", error=str(e))
+            await self._sse.broadcast(event_json)
 
         # Step 13: Update posture state for dashboard
         try:

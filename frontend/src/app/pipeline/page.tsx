@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from 'react';
-import { Database, Network, BrainCircuit, Gauge, CheckCircle, Cpu, Activity, Zap, GitBranch } from 'lucide-react';
+import { Database, Network, BrainCircuit, Gauge, CheckCircle, Cpu, Activity, Zap, GitBranch, Shield, Eye, Cloud, Terminal, FileText, Wifi } from 'lucide-react';
 import useSWR from 'swr';
 import { useLiveEvents } from '@/hooks/useLiveEvents';
 
@@ -90,6 +90,38 @@ const STREAM_ICONS: Record<string, React.ElementType> = {
   meta_learner: Network,
 };
 
+const GRAPH_NODES = {
+  ingestors: [
+    { id: 'zeek', label: 'Zeek NIDS', icon: Eye, x: 15, y: 20 },
+    { id: 'suricata', label: 'Suricata', icon: Shield, x: 15, y: 40 },
+    { id: 'aws', label: 'AWS Trail', icon: Cloud, x: 15, y: 60 },
+    { id: 'syslog', label: 'Syslog', icon: Terminal, x: 15, y: 80 },
+  ],
+  extractors: [
+    { id: 'netflow', label: 'PCAP & Netflow', icon: Wifi, x: 50, y: 30 },
+    { id: 'logext', label: 'Log Extractor', icon: FileText, x: 50, y: 70 },
+  ],
+  models: [
+    { id: 'vae', label: 'VAE Anomaly', icon: Activity, x: 85, y: 15 },
+    { id: 'hst', label: 'HST Classifier', icon: Gauge, x: 85, y: 33 },
+    { id: 'temporal', label: 'Temporal RNN', icon: GitBranch, x: 85, y: 50 },
+    { id: 'adversarial', label: 'Adv GAN', icon: Zap, x: 85, y: 68 },
+    { id: 'ensemble', label: 'Ensemble', icon: BrainCircuit, x: 85, y: 85 },
+  ]
+};
+
+const graphConnections: { from: any; to: any; id: string }[] = [];
+GRAPH_NODES.ingestors.forEach(ing => {
+  GRAPH_NODES.extractors.forEach(ext => {
+    graphConnections.push({ from: ing, to: ext, id: `${ing.id}-${ext.id}` });
+  });
+});
+GRAPH_NODES.extractors.forEach(ext => {
+  GRAPH_NODES.models.forEach(mod => {
+    graphConnections.push({ from: ext, to: mod, id: `${ext.id}-${mod.id}` });
+  });
+});
+
 function SkeletonBlock({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-sf-surface/60 rounded ${className}`} />;
 }
@@ -125,6 +157,7 @@ export default function MLPipelinePage() {
   const [neuralLog, setNeuralLog] = useState<NeuralLogEntry[]>([
     { timestamp: '14:02:41', type: 'INFERENCE', message: 'Pipeline initialized — awaiting live events', status: 'CLEAN' },
   ]);
+  const [pulses, setPulses] = useState<{ id: string; source: string; ext: string; mod: string }[]>([]);
 
   const { data: statusData, isLoading: statusLoading } = useSWR<PipelineStatus>(
     '/api/proxy/api/v1/pipeline/status', fetcher, { refreshInterval: 5000 }
@@ -156,6 +189,19 @@ export default function MLPipelinePage() {
     };
 
     setNeuralLog(prev => [entry, ...prev].slice(0, 50));
+
+    // dynamic graph pulse logic
+    const sType = sourceType.toLowerCase();
+    const sourceMap: Record<string, string> = { zeek: 'zeek', suricata: 'suricata', aws: 'aws', syslog: 'syslog' };
+    const matchedSourceId = Object.keys(sourceMap).find(k => sType.includes(k)) || GRAPH_NODES.ingestors[Math.floor(Math.random() * GRAPH_NODES.ingestors.length)].id;
+    const extId = GRAPH_NODES.extractors[Math.floor(Math.random() * GRAPH_NODES.extractors.length)].id;
+    const modId = GRAPH_NODES.models[Math.floor(Math.random() * GRAPH_NODES.models.length)].id;
+
+    const newPulse = { id: Date.now().toString() + Math.random(), source: matchedSourceId, ext: extId, mod: modId };
+    setPulses(p => [...p, newPulse]);
+    setTimeout(() => {
+      setPulses(p => p.filter(pulse => pulse.id !== newPulse.id));
+    }, 1500);
   }, []);
 
   useLiveEvents({ onEvent: handleLiveEvent });
@@ -228,47 +274,52 @@ export default function MLPipelinePage() {
               <div className="flex items-center justify-between">
                 <h3 className="text-sf-accent text-sm font-bold tracking-tight uppercase flex items-center gap-2">
                   <Activity className="w-4 h-4" />
-                  ML Flow Visualizer
+                  ML Visualizer
                 </h3>
                 <span className="flex items-center gap-2 text-[10px] font-mono text-sf-accent bg-sf-accent/10 px-2 py-1 rounded border border-sf-accent/30 animate-pulse">
                   <span className="w-1.5 h-1.5 rounded-full bg-sf-accent" /> LIVE INFERENCE
                 </span>
               </div>
 
-              <div className="relative w-full aspect-[4/3] overflow-hidden group">
+              <div className="relative w-full aspect-[4/3] bg-sf-bg/50 border border-white/5 rounded-xl overflow-hidden group">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(20,184,166,0.05)_0%,transparent_70%)]" />
 
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 space-y-12 z-10">
-                  {/* Ingestion Node */}
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-12 h-12 rounded bg-sf-bg border border-sf-accent flex items-center justify-center shadow-[0_0_10px_rgba(20,184,166,0.4)]">
-                      <Database className="w-5 h-5 text-sf-accent" />
-                    </div>
-                    <span className="text-[10px] font-medium text-sf-accent tracking-widest uppercase">Ingestion Array</span>
-                  </div>
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full pointer-events-none">
+                  {graphConnections.map(conn => {
+                    const isPulsing = pulses.some(
+                      p => (p.source === conn.from.id && p.ext === conn.to.id) || 
+                           (p.ext === conn.from.id && p.mod === conn.to.id)
+                    );
+                    return (
+                      <path
+                        key={conn.id}
+                        vectorEffect="non-scaling-stroke"
+                        d={`M ${conn.from.x} ${conn.from.y} C ${(conn.from.x + conn.to.x) / 2} ${conn.from.y}, ${(conn.from.x + conn.to.x) / 2} ${conn.to.y}, ${conn.to.x} ${conn.to.y}`}
+                        fill="none"
+                        className={`transition-colors duration-500 ${isPulsing ? 'stroke-sf-accent stroke-[3] opacity-100 drop-shadow-[0_0_5px_rgba(20,184,166,0.8)]' : 'stroke-sf-muted stroke-1 opacity-[0.15]'}`}
+                      />
+                    );
+                  })}
+                </svg>
 
-                  <div className="h-12 w-[1px] bg-sf-accent/30" />
-
-                  {/* Extraction Node */}
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-12 h-12 rounded bg-sf-bg border border-white/20 flex items-center justify-center">
-                      <Network className="w-5 h-5 text-white/50" />
-                    </div>
-                    <span className="text-[10px] font-medium text-sf-muted tracking-widest uppercase">Feature Extractor</span>
-                  </div>
-
-                  <div className="h-12 w-[1px] bg-sf-accent/10 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-[50%] bg-sf-accent/60 animate-[slideDown_2s_linear_infinite]" />
-                  </div>
-
-                  {/* Training Node */}
-                  <div className="flex flex-col items-center gap-2 relative">
-                    <div className="absolute inset-0 bg-sf-accent/10 rounded-lg animate-ping opacity-20 blur-xl" />
-                    <div className="w-16 h-16 rounded bg-sf-bg border border-sf-accent flex items-center justify-center shadow-[0_0_20px_rgba(20,184,166,0.3)] relative z-10">
-                      <BrainCircuit className="w-7 h-7 text-sf-accent" />
-                    </div>
-                    <span className="text-[10px] font-medium text-sf-accent tracking-widest uppercase">Model Ensemble</span>
-                  </div>
+                <div className="absolute inset-0 z-10 pointer-events-none">
+                  {Object.entries(GRAPH_NODES).flatMap(([group, nodes]) => nodes.map(node => {
+                    const isPulsing = pulses.some(p => p.source === node.id || p.ext === node.id || p.mod === node.id);
+                    return (
+                      <div
+                        key={node.id}
+                        className={`absolute flex flex-col items-center justify-center transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${isPulsing ? 'scale-110 drop-shadow-[0_0_12px_rgba(20,184,166,0.6)]' : ''}`}
+                        style={{ left: `${node.x}%`, top: `${node.y}%` }}
+                      >
+                        <div className={`w-8 h-8 md:w-10 md:h-10 rounded border ${isPulsing ? 'border-sf-accent bg-sf-accent/20' : 'border-white/10 bg-sf-bg'} flex items-center justify-center transition-colors duration-300`}>
+                          {node.icon && <node.icon className={`w-4 h-4 md:w-5 md:h-5 transition-colors duration-300 ${isPulsing ? 'text-sf-accent' : 'text-sf-muted/50'}`} />}
+                        </div>
+                        <span className="mt-2 text-[7px] md:text-[8px] font-medium text-sf-muted uppercase tracking-widest whitespace-nowrap bg-sf-bg/80 px-1 rounded transition-colors duration-300">
+                          {node.label}
+                        </span>
+                      </div>
+                    );
+                  }))}
                 </div>
               </div>
             </section>

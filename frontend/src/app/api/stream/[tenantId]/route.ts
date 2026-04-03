@@ -11,7 +11,7 @@ export async function GET(request: NextRequest, { params }: { params: { tenantId
         return new Response("Server Configuration Error", { status: 500 });
     }
 
-    const targetUrl = `${backendUrl}/api/v1/stream/${params.tenantId}`;
+    const targetUrl = `${backendUrl}/api/v1/events/stream`;
 
     try {
         const response = await fetch(targetUrl, {

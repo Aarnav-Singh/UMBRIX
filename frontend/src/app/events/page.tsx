@@ -3,8 +3,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Terminal, X, Share2, ShieldAlert, Activity } from 'lucide-react';
 import { useLiveEvents } from "@/hooks/useLiveEvents";
-import { List } from 'react-window';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
 
 interface LogEvent {
     id: string;
@@ -56,6 +54,39 @@ function canonicalToLogEvent(event: Record<string, unknown>): LogEvent {
     };
 }
 
+const EventRow = ({ log, setSelectedLog }: { log: LogEvent, setSelectedLog: (log: LogEvent) => void }) => {
+    const isCritical = log.level === 'CRITICAL';
+    const isWarn = log.level === 'WARN';
+    const colorHex = isCritical ? 'var(--sf-critical)' : isWarn ? 'var(--sf-warning)' : 'var(--sf-accent)';
+
+    return (
+        <div className="mb-3">
+            <div
+                onClick={() => setSelectedLog(log)}
+                className={`h-[114px] bg-sf-surface/80 backdrop-blur-md p-4 rounded-xl border-l-[4px] flex flex-col gap-2 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-lg ${isCritical ? 'border-l-[var(--sf-critical)] shadow-[0_0_20px_rgba(244,63,94,0.15)] border border-sf-critical/20' : isWarn ? 'border-l-[var(--sf-warning)] border border-sf-warning/20' : 'border-l-[var(--sf-accent)] border border-sf-accent/10 hover:border-sf-accent/40'}`}
+            >
+                <div className="flex justify-between items-start">
+                    <span className="font-mono text-[10px]" style={{ color: colorHex }}>T: {log.timestamp}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-sm font-bold tracking-widest" style={{ color: colorHex, backgroundColor: `${colorHex}15`, border: `1px solid ${colorHex}30` }}>
+                        {log.level}
+                    </span>
+                </div>
+                <p className="text-slate-200 text-xs font-mono line-clamp-2 leading-relaxed">{log.message}</p>
+
+                {log.meta.length > 0 && (
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                        {log.meta.map((m: any, i: number) => (
+                            <span key={i} className={`text-[10px] uppercase font-mono ${isCritical ? 'bg-sf-critical/10 text-sf-critical border-sf-critical/30' : 'bg-sf-bg text-sf-muted border-sf-border'} px-1.5 py-0.5 rounded border`}>
+                                {m.key}: {m.value}
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 export default function RawEventsPage() {
     const [selectedLog, setSelectedLog] = useState<LogEvent | null>(null);
     const [liveEvents, setLiveEvents] = useState<LogEvent[]>([]);
@@ -83,39 +114,6 @@ export default function RawEventsPage() {
 
     const allLogs = liveEvents.length > 0 ? liveEvents : DEMO_LOGS;
 
-const EventRow = ({ index, style, data }: any) => {
-                                const log = data[index];
-                                const isCritical = log.level === 'CRITICAL';
-                                const isWarn = log.level === 'WARN';
-                                const colorHex = isCritical ? 'var(--sf-critical)' : isWarn ? 'var(--sf-warning)' : 'var(--sf-accent)';
-
-                                return (
-                                    <div style={{ ...style }}>
-                                        <div
-                                            onClick={() => setSelectedLog(log)}
-                                            className={`h-[114px] bg-sf-surface/80 backdrop-blur-md p-4 rounded-xl border-l-[4px] flex flex-col gap-2 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-lg ${isCritical ? 'border-l-[var(--sf-critical)] shadow-[0_0_20px_rgba(244,63,94,0.15)] border border-sf-critical/20' : isWarn ? 'border-l-[var(--sf-warning)] border border-sf-warning/20' : 'border-l-[var(--sf-accent)] border border-sf-accent/10 hover:border-sf-accent/40'}`}
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <span className="font-mono text-[10px]" style={{ color: colorHex }}>T: {log.timestamp}</span>
-                                                <span className="text-[10px] px-2 py-0.5 rounded-sm font-bold tracking-widest" style={{ color: colorHex, backgroundColor: `${colorHex}15`, border: `1px solid ${colorHex}30` }}>
-                                                    {log.level}
-                                                </span>
-                                            </div>
-                                            <p className="text-slate-200 text-xs font-mono line-clamp-2 leading-relaxed">{log.message}</p>
-
-                                            {log.meta.length > 0 && (
-                                                <div className="flex gap-2 mt-1 flex-wrap">
-                                                    {log.meta.map((m: any, i: number) => (
-                                                        <span key={i} className={`text-[10px] uppercase font-mono ${isCritical ? 'bg-sf-critical/10 text-sf-critical border-sf-critical/30' : 'bg-sf-bg text-sf-muted border-sf-border'} px-1.5 py-0.5 rounded border`}>
-                                                            {m.key}: {m.value}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            };
 
     return (
         <div className="flex-1 overflow-hidden flex flex-col relative bg-[linear-gradient(rgba(0,242,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,242,255,0.03)_1px,transparent_1px)] bg-[size:30px_30px]">
@@ -154,24 +152,10 @@ const EventRow = ({ index, style, data }: any) => {
             </div>
 
             {/* Event Log Stream */}
-            <div className="flex-1 px-6 py-2 pb-10 relative z-10 perspective-[1000px]">
-                {/* @ts-ignore - type mismatches in AutoSizer v2 */}
-                <AutoSizer>
-                    {({ height, width }: { height: number, width: number }) => (
-                        <List
-                            height={height}
-                            width={width}
-                            itemCount={allLogs.length}
-                            itemSize={130}
-                            itemData={allLogs}
-                            className="custom-scrollbar pr-4 text-left"
-                            style={{ overflowX: 'hidden' }}
-                        >
-                            {/* @ts-ignore - TS ReactNode type limitation in List v2 */}
-                            {EventRow}
-                        </List>
-                    )}
-                </AutoSizer>
+            <div className="flex-1 px-6 py-2 pb-10 overflow-y-auto overflow-x-hidden custom-scrollbar relative z-10 perspective-[1000px]">
+                {allLogs.map(log => (
+                    <EventRow key={log.id} log={log} setSelectedLog={setSelectedLog} />
+                ))}
             </div>
 
             {/* Modal */}

@@ -1,22 +1,17 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { Search, Loader2, ArrowUpRight, ArrowDownRight, User, ShieldAlert, Activity, CheckCircle2, XCircle, Terminal } from "lucide-react";
-import { api, DashboardMetrics } from "@/lib/api/client";
+import React, { useState, useEffect } from "react";
+import { User, ShieldAlert, Activity, CheckCircle2, XCircle, Terminal } from "lucide-react";
+import { api } from "@/lib/api/client";
 import { useLiveEvents } from "@/hooks/useLiveEvents";
 import useSWR from "swr";
 import { ThreatGlobe } from "@/components/features/dashboard/ThreatGlobe";
-import { BarChart, Bar, ResponsiveContainer, YAxis, Tooltip as RechartsTooltip, Cell } from "recharts";
-
-const fetcher = (url: string) => fetch(url).then(r => r.json());
+import { BarChart, Bar, ResponsiveContainer } from "recharts";
 
 // ─── Types & Demos ───────────────────────────────────────────────
 
 interface RemediationFinding { id: string; title: string; severity: 'critical' | 'high' | 'medium' | 'low'; }
-interface RemediationResponse { findings?: RemediationFinding[]; }
-interface ConnectorInfo { id: string; name: string; source_type?: string; is_active?: boolean; status?: string; }
 interface HistoryPoint { date: string; score: number; }
-interface HistoryResponse { data_points: HistoryPoint[]; }
 
 const DEMO_METRICS = { posture_score: 71, posture_delta: 0, active_campaigns: 24, critical_campaigns: 7, events_per_second: 240, connectors_total: 18, connectors_online: 16, analyst_accuracy: 94.5 };
 const DEMO_REMEDIATION: RemediationFinding[] = [
@@ -37,21 +32,8 @@ const DEMO_LIVE_FEED = [
     { e: 'Network Scan Detected', s: 'DMZ', d: 'Blocked', icon: Activity, c: 'text-sf-warning', timeOffset: 45000 },
 ];
 
-// ─── Constants ───────────────────────────────────────────────
-const defaultLayouts = {
-    lg: [
-        { i: 'left-col', x: 0, y: 0, w: 3, h: 22, static: true },
-        { i: 'right-col', x: 9, y: 0, w: 3, h: 22, static: true },
-        { i: 'bottom-row', x: 2, y: 18, w: 8, h: 4, static: true },
-        { i: 'globe-overlay', x: 3, y: 0, w: 6, h: 18, static: true },
-    ]
-};
-
 // ─── Page ─────────────────────────────────────────────────
 export default function DashboardPage() {
-    const [layouts, setLayouts] = useState<any>(defaultLayouts);
-    const wrapperRef = useRef<HTMLDivElement>(null);
-    const [containerWidth, setContainerWidth] = useState<number>(1200);
 
     // ─── REAL TIME DATA PIPELINE ───────────────────────────────────────────────
     
@@ -98,17 +80,6 @@ export default function DashboardPage() {
         ? apiCampaigns.map(c => ({ id: c.id, title: c.name, severity: c.severity as 'critical'|'high'|'medium'|'low' })) 
         : DEMO_REMEDIATION;
 
-    useEffect(() => {
-        if (!wrapperRef.current) return;
-        const observer = new ResizeObserver(entries => {
-            if (entries[0]) setContainerWidth(entries[0].contentRect.width);
-        });
-        observer.observe(wrapperRef.current);
-        return () => observer.disconnect();
-    }, []);
-
-    const riskScore = Math.round(1000 - metrics.posture_score * 10);
-    const complianceRatio = Math.round(92 + (metrics.connectors_online / Math.max(1, metrics.connectors_total)) * 8);
 
     return (
         <div className="relative w-full h-screen overflow-hidden bg-sf-bg text-sf-text font-sans">
@@ -130,7 +101,7 @@ export default function DashboardPage() {
                             {Math.round(metrics.posture_score)}<span className="text-sf-muted text-lg">/100</span>
                         </div>
                         <div className="absolute inset-x-0 bottom-0 h-10 opacity-20 pointer-events-none">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height={40}>
                                 <BarChart data={historyPoints.slice(-15)}>
                                     <Bar dataKey="score" fill="#14b8a6" radius={[2, 2, 0, 0]} />
                                 </BarChart>

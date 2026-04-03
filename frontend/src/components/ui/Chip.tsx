@@ -10,7 +10,7 @@ interface ChipProps {
 export function Chip({ label, color = "var(--sf-bg)", variant = "outlined", className = "" }: ChipProps) {
     return (
         <span
-            className={`inline-flex items-center text-[10px] font-space tracking-wider leading-none px-1.5 py-0.5 rounded-sm ${className}`}
+            className={`inline-flex items-center text-[10px] font-mono tracking-wider leading-none px-1.5 py-0.5 rounded-sm ${className}`}
             style={{
                 color,
                 border: `1px solid ${color}40`,

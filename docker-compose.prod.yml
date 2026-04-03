@@ -183,7 +183,7 @@ services:
       - REDIS_URL=redis://redis-master:6379/0
       - QDRANT_HOST=qdrant
       # Use PgBouncer port 6432 instead of direct Postgres
-      - POSTGRES_DSN=postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD}@pgbouncer:5432/sentinel_fabric
+      - POSTGRES_DSN=postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel_fabric
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
     networks:
       - sf_network
@@ -208,7 +208,7 @@ services:
       - REDIS_HOST=redis-master
       - REDIS_URL=redis://redis-master:6379/0
       - QDRANT_HOST=qdrant
-      - POSTGRES_DSN=postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD}@pgbouncer:5432/sentinel_fabric
+      - POSTGRES_DSN=postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel_fabric
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       # The API pushes to Kafka, does not run the pipeline directly
     networks:

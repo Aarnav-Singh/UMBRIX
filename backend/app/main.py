@@ -77,18 +77,15 @@ async def lifespan(app: FastAPI):
         except:
             return False
 
-    async def _connect_or_fallback(repo: Any, name: str, host: str, port: int) -> bool:
-        if await _port_open(host, port):
-            try:
-                # Add a timeout to the actual connection attempt
-                await asyncio.wait_for(repo.connect(), timeout=1.5)
-                logger.info(f"{name}_connected", host=host, port=port)
-                return True
-            except Exception as e:
-                logger.warning(f"{name}_connection_failed", error=str(e))
-        else:
-            logger.warning(f"{name}_port_closed", host=host, port=port)
-        return False
+    async def _connect_or_fallback(repo: Any, name: str, fallback_host: str, fallback_port: int) -> bool:
+        try:
+            # Add a timeout to the actual connection attempt (the repo uses its own config string)
+            await asyncio.wait_for(repo.connect(), timeout=2.5)
+            logger.info(f"{name}_connected")
+            return True
+        except Exception as e:
+            logger.warning(f"{name}_connection_failed", error=str(e))
+            return False
 
     # Try connecting to Docker infra
     # 1. ClickHouse
@@ -183,7 +180,30 @@ async def lifespan(app: FastAPI):
     # Start Vault background polling for runtime secret rotation
     asyncio.create_task(settings.start_vault_polling())
 
-    # 3. Start background consumers and schedulers (if infra is healthy)
+    import json
+    if redis_ok:
+        async def _redis_pubsub_listener():
+            try:
+                await asyncio.sleep(2) # Give dependencies time to initialize
+                if not hasattr(redis, "_client") or not redis._client: return
+                pubsub = redis._client.pubsub()
+                await pubsub.subscribe("live_events")
+                
+                from app.dependencies import get_app_broadcaster
+                app_broadcaster = get_app_broadcaster()
+                
+                async for message in pubsub.listen():
+                    if message["type"] == "message":
+                        try:
+                            payload = message["data"].decode("utf-8")
+                            payload_dict = json.loads(payload)
+                            await app_broadcaster.broadcast(payload_dict)
+                        except Exception as e:
+                            logger.debug("redis_sse_forward_error", error=str(e))
+            except Exception as e:
+                logger.error("redis_pubsub_listener_failed", error=str(e))
+
+        asyncio.create_task(_redis_pubsub_listener())
     if ch_ok and redis_ok:
         logger.info("starting_infrastructure_consumers")
         from app.consumers.event_consumer import EventConsumer

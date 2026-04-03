@@ -200,16 +200,46 @@ export default function FindingsPage() {
               )}
             </div>
 
-            {/* Abstract 3D Radar/Target View */}
-             <div className="relative h-20 w-full flex items-center mb-2">
+            {/* Dynamic 3D Radar Threat Plot View */}
+             <div className="relative h-28 w-full flex items-center mb-6 overflow-hidden bg-sf-surface/30 rounded-xl border border-sf-border shadow-inner">
                  <svg className="w-full h-full text-sf-accent/30 stroke-current text-opacity-10" fill="none">
+                    {/* Grid lines */}
+                    <line x1="0" y1="25%" x2="100%" y2="25%" strokeWidth="1" strokeDasharray="2 4" opacity="0.5" />
                     <line x1="0" y1="50%" x2="100%" y2="50%" strokeWidth="1" strokeDasharray="4 4" />
-                    <line x1="20%" y1="0" x2="20%" y2="100%" strokeWidth="1" strokeDasharray="4 4" />
-                    <circle cx="20%" cy="50%" r="4" fill="var(--sf-accent)" className="animate-pulse shadow-[0_0_10px_var(--sf-accent)]" />
+                    <line x1="0" y1="75%" x2="100%" y2="75%" strokeWidth="1" strokeDasharray="2 4" opacity="0.5" />
+
+                    <line x1="25%" y1="0" x2="25%" y2="100%" strokeWidth="1" strokeDasharray="2 4" opacity="0.5" />
+                    <line x1="50%" y1="0" x2="50%" y2="100%" strokeWidth="1" strokeDasharray="4 4" />
+                    <line x1="75%" y1="0" x2="75%" y2="100%" strokeWidth="1" strokeDasharray="2 4" opacity="0.5" />
+
+                    {/* Threat Nodes */}
+                    {findings.map((f, i) => {
+                      // Pseudo-random deterministic placement based on ID
+                      const seed1 = f.id.charCodeAt(0) || 0;
+                      const seed2 = f.id.charCodeAt(f.id.length - 1) || 0;
+                      const x = `${10 + (Math.abs(Math.sin(seed1 * i)) * 80)}%`;
+                      const y = `${10 + (Math.abs(Math.cos(seed2 * i)) * 80)}%`;
+                      
+                      const color = SEVERITY_MAP[f.severity]?.border || 'var(--sf-accent)';
+
+                      return (
+                         <circle 
+                            key={f.id} 
+                            cx={x} 
+                            cy={y} 
+                            r={f.severity === 'critical' ? '4' : '2'} 
+                            fill={color} 
+                            className="animate-pulse"
+                            style={{ filter: `drop-shadow(0 0 6px ${color})` }}
+                          />
+                      );
+                    })}
                  </svg>
-                 <div className="absolute left-8 bottom-0 flex gap-6">
+                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,var(--sf-bg)_100%)] pointer-events-none" />
+                 
+                 <div className="absolute left-4 bottom-2 flex gap-6 z-10 bg-sf-bg/80 px-3 py-1 rounded border border-sf-accent/20 backdrop-blur-sm">
                     <div className="text-[10px] font-mono font-medium text-sf-accent">NODE_ALPHA: ACTIVE</div>
-                    <div className="text-[10px] font-mono font-medium text-sf-accent">FINDINGS: {findings.length}</div>
+                    <div className="text-[10px] font-mono font-medium text-sf-accent">THREAT_NODES: {findings.length}</div>
                  </div>
             </div>
           </div>
@@ -401,7 +431,7 @@ export default function FindingsPage() {
                     </div>
 
                     {/* Background large icon */}
-                    <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none z-0">
                       <Target className="w-24 h-24" style={{ color: sev.border }} />
                     </div>
                   </div>
