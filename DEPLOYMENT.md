@@ -5,6 +5,7 @@ UMBRIX is a full-stack cybersecurity posture visualization platform. It supports
 ---
 
 ## 1. On-Premise Installation (Self-Hosted for Enterprises)
+
 Use our CLI installer scripts to rapidly deploy the entire UMBRIX stack (Frontend, FastAPI, Postgres, Redis, Clickhouse) using Docker. This ensures data completely remains inside your own firewalls.
 
 ### Prerequisites
@@ -16,18 +17,22 @@ Use our CLI installer scripts to rapidly deploy the entire UMBRIX stack (Fronten
 
 1. Open your terminal in the UMBRIX root directory.
 2. Make the installer script executable and run it:
+
    ```bash
    chmod +x scripts/install/install.sh
    ./scripts/install/install.sh
    ```
 
+
 ### Windows (PowerShell)
 
 1. Open PowerShell as Administrator in the UMBRIX root directory.
 2. Execute the setup script:
+
    ```powershell
    .\scripts\install\install.ps1
    ```
+
 
 **What the installer does:**
 

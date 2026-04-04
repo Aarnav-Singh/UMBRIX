@@ -51,6 +51,7 @@ services:
     name: umbrix-redis
     plan: free
     region: ohio
+    ipAllowList: []
 
 databases:
   # ─── PostgreSQL Database ───────────────────────────────────────────────────

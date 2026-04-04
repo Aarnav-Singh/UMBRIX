@@ -15,26 +15,26 @@ Write-Host "==========================================================" -Foregro
 Write-Host ""
 
 # 1. Check Dependencies
-try {
-    $null = Get-Command docker -ErrorAction Stop
-} catch {
+$dockerExists = Get-Command docker -ErrorAction Ignore
+if (-not $dockerExists) {
     Write-Host "[!] Docker is not installed. Please install Docker Desktop first: https://docs.docker.com/desktop/windows/install/" -ForegroundColor Red
     exit 1
 }
 
 $dockerComposeCmd = ""
-try {
-    # Check if 'docker compose' exists
-    $null = docker compose version 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        $dockerComposeCmd = "docker compose"
-    } else {
-        # Fallback to older docker-compose
+# Check if 'docker compose' exists
+$composeInfo = docker compose version 2>&1
+if ($LASTEXITCODE -eq 0) {
+    $dockerComposeCmd = "docker compose"
+} else {
+    # Check if older docker-compose exists
+    $composeOld = Get-Command docker-compose -ErrorAction Ignore
+    if ($composeOld) {
         $dockerComposeCmd = "docker-compose"
+    } else {
+        Write-Host "[!] Docker Compose is not installed or available." -ForegroundColor Red
+        exit 1
     }
-} catch {
-    Write-Host "[!] Docker Compose is not installed or available." -ForegroundColor Red
-    exit 1
 }
 
 Write-Host "[✓] Docker and Docker Compose detected." -ForegroundColor Green
