@@ -16,7 +16,7 @@ Write-Host ""
 
 # 1. Check Dependencies
 try {
-    $dockerCheck = Get-Command docker -ErrorAction Stop
+    $null = Get-Command docker -ErrorAction Stop
 } catch {
     Write-Host "[!] Docker is not installed. Please install Docker Desktop first: https://docs.docker.com/desktop/windows/install/" -ForegroundColor Red
     exit 1
@@ -25,7 +25,7 @@ try {
 $dockerComposeCmd = ""
 try {
     # Check if 'docker compose' exists
-    $composeCheck = docker compose version 2>&1
+    $null = docker compose version 2>&1
     if ($LASTEXITCODE -eq 0) {
         $dockerComposeCmd = "docker compose"
     } else {

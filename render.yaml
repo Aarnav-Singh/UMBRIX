@@ -2,10 +2,9 @@ services:
   # ─── FastAPI Backend Web Service ──────────────────────────────────────────
   - type: web
     name: umbrix-api
-    env: docker
+    runtime: docker
     dockerContext: ./backend
     dockerfilePath: ./Dockerfile
-    dockerTarget: api
     region: ohio
     plan: starter
     healthCheckPath: /health
@@ -29,10 +28,9 @@ services:
   # ─── Kafka Background Worker ───────────────────────────────────────────────
   - type: worker
     name: umbrix-worker
-    env: docker
+    runtime: docker
     dockerContext: ./backend
     dockerfilePath: ./Dockerfile
-    dockerTarget: worker
     region: ohio
     plan: starter
     envVars:
@@ -48,6 +46,12 @@ services:
           name: umbrix-redis
           property: connectionString
 
+  # ─── Redis Cache ───────────────────────────────────────────────────────────
+  - type: redis
+    name: umbrix-redis
+    plan: free
+    region: ohio
+
 databases:
   # ─── PostgreSQL Database ───────────────────────────────────────────────────
   - name: umbrix-postgres
@@ -55,9 +59,4 @@ databases:
     region: ohio
     databaseName: sentinel_fabric
     user: sentinel
-    
-  # ─── Redis Cache ───────────────────────────────────────────────────────────
-  - name: umbrix-redis
-    type: redis
-    plan: free
-    region: ohio
+    ipAllowList: []

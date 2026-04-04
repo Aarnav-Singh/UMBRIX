@@ -8,10 +8,12 @@ UMBRIX is a full-stack cybersecurity posture visualization platform. It supports
 Use our CLI installer scripts to rapidly deploy the entire UMBRIX stack (Frontend, FastAPI, Postgres, Redis, Clickhouse) using Docker. This ensures data completely remains inside your own firewalls.
 
 ### Prerequisites
+
 - Docker and Docker Compose installed.
 - Minimum 4GB RAM allocated to Docker.
 
 ### Linux & macOS
+
 1. Open your terminal in the UMBRIX root directory.
 2. Make the installer script executable and run it:
    ```bash
@@ -20,6 +22,7 @@ Use our CLI installer scripts to rapidly deploy the entire UMBRIX stack (Fronten
    ```
 
 ### Windows (PowerShell)
+
 1. Open PowerShell as Administrator in the UMBRIX root directory.
 2. Execute the setup script:
    ```powershell
@@ -27,12 +30,14 @@ Use our CLI installer scripts to rapidly deploy the entire UMBRIX stack (Fronten
    ```
 
 **What the installer does:**
+
 - Verifies system dependencies.
 - Generates a highly secure `.env.prod` file with 64-character JWT secrets and random database passwords.
 - Compiles the Production variants of the Next.js and Python API containers.
 - Orchestrates them up silently using `docker-compose.prod.yml`.
 
 Accessing your platform:
+
 - Dashboard: `http://localhost:3000`
 - API Swagger: `http://localhost:8000/docs`
 - Grafana Metrics: `http://localhost:3001`
@@ -40,9 +45,11 @@ Accessing your platform:
 ---
 
 ## 2. Cloud Native Deployment (SaaS)
+
 If you do not have on-prem servers or wish to expose the platform securely to remote workers, use our direct Cloud Integrations.
 
 ### Backend (Render / Railway / AWS)
+
 We have included a `render.yaml` blueprint. This utilizes "Infrastructure as Code" to set up your entire backend ecosystem on [Render.com](https://render.com).
 
 1. Create an account on Render.
@@ -57,6 +64,7 @@ We have included a `render.yaml` blueprint. This utilizes "Infrastructure as Cod
 *Alternative for Heavy Enterprise:* See `infra/helm/umbrix/` for deploying cleanly onto AWS EKS or Google GKE using Kubernetes Helm Charts.
 
 ### Frontend (Vercel)
+
 The Dashboard is built using Next.js 14 and is fully optimized for **Vercel** Edge deployments.
 
 1. Create a project on [Vercel](https://vercel.com).
