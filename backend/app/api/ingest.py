@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Dict, Any
+from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request, Depends, Header
 from pydantic import BaseModel
+import structlog
 
 from app.config import settings
 from app.schemas.canonical_event import CanonicalEvent
@@ -24,8 +25,6 @@ from app.services.ingestion.sentinel_connector import MicrosoftSentinelParser
 from app.schemas.canonical_event import (
     ActionType, OutcomeType, SeverityLevel, NetworkInfo, Entity, EntityType, EventMetadata,
 )
-
-import structlog
 
 logger = structlog.get_logger(__name__)
 
