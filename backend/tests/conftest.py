@@ -8,7 +8,6 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.middleware.auth import require_auth
 
 
 # ── Test JWT claims ─────────────────────────────────────────

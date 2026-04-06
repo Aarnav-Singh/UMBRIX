@@ -7,7 +7,6 @@ and push to regional Kafka topics.
 import os
 import time
 import json
-import asyncio
 from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import ValidationError
 
@@ -15,7 +14,6 @@ import structlog
 from aiokafka import AIOKafkaProducer
 
 from app.schemas.canonical_event import CanonicalEvent
-from app.config import settings
 
 logger = structlog.get_logger(__name__)
 

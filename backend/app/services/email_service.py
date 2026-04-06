@@ -6,7 +6,6 @@ AWS SES, SendGrid, and generic SMTP relays.
 """
 from __future__ import annotations
 
-import asyncio
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional

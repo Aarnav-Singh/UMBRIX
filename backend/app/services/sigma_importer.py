@@ -12,11 +12,10 @@ Phase 30.4: Initial implementation supporting:
 """
 from __future__ import annotations
 
-import os
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 import structlog

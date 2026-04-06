@@ -258,7 +258,7 @@ class PaloAltoProvider(ActionProvider):
                     f"/config/devices/entry[@name='localhost.localdomain']"
                     f"/vsys/entry[@name='vsys1']/address/entry[@name='sentinel-{ip}']"
                 )
-                resp = await client.get(base, params={
+                await client.get(base, params={
                     "type": "config",
                     "action": "delete",
                     "xpath": addr_xpath,
@@ -681,4 +681,3 @@ class ActionRegistry:
         if cls._providers is None:
             cls._providers = cls._init_providers()
         return cls._providers.get(name)
-

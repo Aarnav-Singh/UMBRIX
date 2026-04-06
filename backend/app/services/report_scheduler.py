@@ -3,9 +3,7 @@
 Executes weekly via APScheduler to generate SOC2 & Executive
 reports for all active tenants.
 """
-import asyncio
 import structlog
-from datetime import datetime
 
 logger = structlog.get_logger(__name__)
 
@@ -18,7 +16,7 @@ async def generate_weekly_digest() -> None:
     
     logger.info("weekly_digest_job_started")
     try:
-        pg = get_app_postgres()
+        get_app_postgres()
         tenants = ["default"]  # In a multi-tenant DB, fetch distinct tenant_ids
         
         for tenant in tenants:

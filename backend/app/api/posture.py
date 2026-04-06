@@ -4,12 +4,14 @@ Returns real-time data from the event store (ClickHouse or in-memory).
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+import time as _time
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
-from app.dependencies import get_app_clickhouse, get_app_redis, get_app_broadcaster, get_app_postgres
-from app.middleware.auth import require_viewer, require_admin, AuditLogger
+from app.dependencies import get_app_clickhouse, get_app_redis, get_app_postgres
+from app.middleware.auth import require_viewer, require_admin
 
 import structlog
 
@@ -65,8 +67,6 @@ async def get_dashboard_metrics(claims: dict = Depends(require_viewer)) -> dict:
     """Return KPI metrics for the dashboard cards."""
     ch = get_app_clickhouse()
     redis = get_app_redis()
-    broadcaster = get_app_broadcaster()
-
     try:
         event_count = await ch.get_event_count()
     except Exception:
@@ -200,9 +200,6 @@ async def list_connectors(claims: dict = Depends(require_viewer)) -> list[dict]:
 # ═══════════════════════════════════════════════════════════════════════
 # Security Posture Engine — V2 Endpoints
 # ═══════════════════════════════════════════════════════════════════════
-
-import random
-import time as _time
 
 # Static fallback defaults — used ONLY when DB queries fail
 _DOMAINS_FALLBACK = [
@@ -434,8 +431,6 @@ async def trigger_posture_scan(claims: dict = Depends(require_admin)):
         "message": "Posture evaluation started. Results refresh within 60 seconds.",
     }
 
-
-from pydantic import BaseModel
 
 class AssetRegistrationRequest(BaseModel):
     asset_name: str

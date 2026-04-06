@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from app.schemas.canonical_event import CanonicalEvent, Entity, NetworkInfo
 from app.services.pipeline import PipelineService

@@ -6,7 +6,6 @@ Handles dispatching high-severity alerts to external integrations
 import httpx
 import structlog
 import json
-from typing import Optional
 
 from app.schemas.canonical_event import CanonicalEvent
 

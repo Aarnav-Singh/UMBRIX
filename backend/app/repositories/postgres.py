@@ -11,7 +11,6 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import String, Float, Boolean, DateTime, func, select, text, Index, Integer, JSON, Text
-from sqlalchemy.dialects.postgresql import TSVECTOR
 
 from app.config import settings
 
@@ -428,7 +427,7 @@ class PostgresRepository(CollaborationAuditMixin):
 
     async def get_entity_paths(self, tenant_id: str, start_entity: str, max_depth: int = 3) -> list[dict]:
         """Recursive CTE for resolving lateral movement and activity paths."""
-        query = text(f"""
+        query = text("""
         WITH RECURSIVE path_search AS (
             -- Base case
             SELECT id, source_entity, target_entity, relationship_type, campaign_id, 1 as depth, ARRAY[source_entity, target_entity] as path

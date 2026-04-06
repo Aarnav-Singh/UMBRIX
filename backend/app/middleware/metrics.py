@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST
+from prometheus_client import Counter
+from prometheus_client import Gauge
+from prometheus_client import Histogram
+from prometheus_client import generate_latest
 from fastapi.responses import Response
 import time
 

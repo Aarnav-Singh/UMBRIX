@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from typing import List, Dict, Any
+from typing import Dict, Any
 from app.middleware.auth import require_analyst, require_admin, AuditLogger
 from app.services.soar.engine import ExecutionEngine, Playbook, Node
 from app.services.soar.actions import ActionRegistry
@@ -225,7 +225,7 @@ async def execute_playbook(
             request=request,
             claims=claims,
             target=playbook_id,
-            detail=f"Partial failure detected during execution",
+            detail="Partial failure detected during execution",
         )
         return {"status": "partial_success", "message": "Playbook executed with some failures", "results": result}
         

@@ -1,5 +1,5 @@
 import json
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 

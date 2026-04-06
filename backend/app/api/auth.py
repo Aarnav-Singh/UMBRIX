@@ -10,11 +10,6 @@ from pydantic import BaseModel
 from app.middleware.auth import (
     create_access_token,
     require_auth,
-    require_role,
-    require_admin,
-    require_analyst,
-    require_viewer,
-    Role,
     AuditLogger,
 )
 from app.dependencies import get_app_postgres, get_app_ratelimiter, get_app_redis

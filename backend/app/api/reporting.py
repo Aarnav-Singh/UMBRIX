@@ -1,6 +1,6 @@
 import csv
 import io
-import json
+import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -9,11 +9,11 @@ import openpyxl
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import getSampleStyleSheet
 
 from app.middleware.auth import require_analyst, require_admin, AuditLogger
 from app.repositories.clickhouse import ClickHouseRepository
-from app.repositories.postgres import PostgresRepository, ReportMetadata
+from app.repositories.postgres import ReportMetadata
 from app.dependencies import get_app_postgres
 
 router = APIRouter(prefix="/reports", tags=["Reporting"])
@@ -43,7 +43,8 @@ async def generate_csv_report(
     
     for ev in events:
         ts = ev.get("timestamp", "")
-        if isinstance(ts, datetime): ts = ts.isoformat()
+        if isinstance(ts, datetime):
+            ts = ts.isoformat()
         writer.writerow([
             ts,
             ev.get("event_id", ""),
@@ -88,7 +89,8 @@ async def generate_excel_report(
 
     for ev in events:
         ts = ev.get("timestamp", "")
-        if isinstance(ts, datetime): ts = ts.strftime("%Y-%m-%d %H:%M:%S")
+        if isinstance(ts, datetime):
+            ts = ts.strftime("%Y-%m-%d %H:%M:%S")
         ws.append([
             ts,
             ev.get("event_id", ""),
@@ -131,8 +133,6 @@ async def generate_excel_report(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
         headers=response_headers
     )
-
-import uuid
 
 @router.get("/pdf")
 async def generate_pdf_report(
@@ -177,7 +177,8 @@ async def generate_pdf_report(
         data = [["Timestamp", "Message", "Severity", "Score", "Action"]]
         for ev in severe_events[:20]:
             ts = ev.get("timestamp", "")
-            if isinstance(ts, datetime): ts = ts.strftime("%m/%d %H:%M")
+            if isinstance(ts, datetime):
+                ts = ts.strftime("%m/%d %H:%M")
             msg = str(ev.get("message", ""))
             msg = (msg[:50] + '...') if len(msg) > 50 else msg
             score = f"{ev.get('meta_score', 0.0):.2f}"

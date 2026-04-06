@@ -10,7 +10,7 @@ import csv
 import json
 import httpx
 import structlog
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -169,7 +169,6 @@ class ComplianceDigestGenerator:
         """Send digest summary via email to configured recipients."""
         try:
             from app.services.email_service import email_service
-            from app.config import settings
 
             if not email_service.is_configured:
                 return

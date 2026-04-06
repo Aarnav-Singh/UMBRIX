@@ -490,7 +490,7 @@ class PipelineService:
             event.source_entity.asset_criticality = asset_crit
             
         event_count = (entity_state or {}).get("event_count", 0)
-        risk_score = compute_risk_score(
+        compute_risk_score(
             meta_score=event.ml_scores.meta_score,
             asset_criticality=asset_crit,
             entity_event_count=event_count,

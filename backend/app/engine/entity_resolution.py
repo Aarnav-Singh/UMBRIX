@@ -15,8 +15,6 @@ across different data sources.
 """
 from __future__ import annotations
 
-import re
-from datetime import datetime
 from typing import Optional, Any
 
 import structlog

@@ -5,6 +5,7 @@ GET /api/v1/health returns the status of all dependencies.
 from __future__ import annotations
 
 from fastapi import APIRouter
+from typing import Any
 
 from app.dependencies import get_app_clickhouse, get_app_redis
 
@@ -40,8 +41,6 @@ async def health_check() -> dict:
         "status": "healthy" if all_ok else "degraded",
         "checks": checks,
     }
-
-from typing import Any
 
 @router.get("/health/deep")
 async def health_deep() -> dict:
@@ -93,4 +92,3 @@ async def health_deep() -> dict:
         "status": status,
         "components": checks,
     }
-

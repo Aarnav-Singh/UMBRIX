@@ -6,7 +6,6 @@ on high-level directives.
 """
 import uuid
 import logging
-import json
 import asyncio
 from typing import Dict, Any, List, Optional
 
@@ -203,7 +202,7 @@ class ExecutionEngine:
                     )
                     logger.info(f"[SOAR] Playbook {playbook.id} paused at node {node.id}, approval_id={approval_id}")
                 else:
-                    logger.warning(f"[SOAR] Playbook paused but no postgres repo for state persistence")
+                    logger.warning("[SOAR] Playbook paused but no postgres repo for state persistence")
                 
                 results[-1]["approval_id"] = approval_id
                 break

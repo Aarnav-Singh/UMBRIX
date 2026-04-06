@@ -10,7 +10,6 @@ Usage:
   pip install locust
   locust -f tests/load_test/locustfile.py --host http://localhost:8000
 """
-import json
 import random
 import uuid
 from locust import HttpUser, task, between

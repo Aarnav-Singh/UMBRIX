@@ -6,8 +6,6 @@ Transparent drop-in for the real ClickHouseRepository interface.
 from __future__ import annotations
 
 from collections import deque
-from typing import Optional
-from datetime import datetime
 
 from app.schemas.canonical_event import CanonicalEvent
 

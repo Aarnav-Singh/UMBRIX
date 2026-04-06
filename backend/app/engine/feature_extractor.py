@@ -6,7 +6,6 @@ the tabular feature vector consumed by the supervised ensemble
 """
 from __future__ import annotations
 
-import math
 from typing import Optional
 
 from app.schemas.canonical_event import CanonicalEvent

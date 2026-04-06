@@ -48,7 +48,7 @@ class RateLimiter:
             request_count = await self._redis._redis.zcard(key)
             
             if request_count >= limit:
-                logger.warning("rate_limit_exceeded", ip=client_ip, path=request.url.path)
+                logger.warning("rate_limit_exceeded", identifier=key_id, path=request.url.path)
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail="Too many requests. Please try again later.",
@@ -124,4 +124,3 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 # Proceed on unexpected errors if not explicitly denied by limiter
         
         return await call_next(request)
-

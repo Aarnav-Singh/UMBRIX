@@ -1,7 +1,6 @@
 """Tests for Decision Engine."""
-import pytest
 from app.engine.decision_engine import DecisionEngine
-from app.schemas.canonical_event import CanonicalEvent, MLScores, SeverityLevel
+from app.schemas.canonical_event import CanonicalEvent, MLScores
 
 
 class TestDecisionEngine:

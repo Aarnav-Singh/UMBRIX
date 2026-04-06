@@ -12,7 +12,6 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.dependencies import init_dependencies, get_app_pipeline
@@ -28,7 +27,6 @@ from app.api import ingest, health, campaigns, posture, simulation, agents, soar
 from app.api import pipeline_status, events_feed, findings, reporting, settings as settings_api, sigma_rules, vault, cases, threat_graph
 from app.api.auth import router as auth_router
 from app.services.hunting import start_hunter_scheduler
-from app.services.compliance_digest import run_compliance_digest_job
 
 import structlog
 
@@ -78,7 +76,7 @@ async def lifespan(app: FastAPI):
             writer.close()
             await writer.wait_closed()
             return True
-        except:
+        except Exception:
             return False
 
     async def _connect_or_fallback(repo: Any, name: str, fallback_host: str, fallback_port: int) -> bool:
@@ -221,7 +219,8 @@ async def lifespan(app: FastAPI):
         async def _redis_pubsub_listener():
             try:
                 await asyncio.sleep(2) # Give dependencies time to initialize
-                if not hasattr(redis, "_client") or not redis._client: return
+                if not hasattr(redis, "_client") or not redis._client:
+                    return
                 pubsub = redis._client.pubsub()
                 await pubsub.subscribe("live_events")
                 

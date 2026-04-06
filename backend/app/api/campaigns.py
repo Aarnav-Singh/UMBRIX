@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.dependencies import get_app_clickhouse, get_app_redis
+from app.dependencies import get_app_redis
 from app.middleware.auth import require_viewer
 
 import structlog

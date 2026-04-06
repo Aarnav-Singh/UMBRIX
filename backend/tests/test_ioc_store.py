@@ -1,5 +1,4 @@
 """Tests for IOC store lookups."""
-import pytest
 from app.engine.ioc_store import IOCStore
 from app.schemas.canonical_event import CanonicalEvent, NetworkInfo
 

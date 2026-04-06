@@ -1,8 +1,7 @@
 """Tests for Sigma rule engine."""
-import pytest
 from app.engine.sigma_engine import SigmaEngine
 from app.schemas.canonical_event import (
-    CanonicalEvent, Entity, EntityType, NetworkInfo,
+    CanonicalEvent, NetworkInfo,
     ActionType, SeverityLevel, OutcomeType,
 )
 

@@ -1,10 +1,8 @@
 """Tests for CanonicalEvent schema validation."""
-import pytest
-from datetime import datetime
 from app.schemas.canonical_event import (
     CanonicalEvent, Entity, EntityType, NetworkInfo,
     ActionType, OutcomeType, SeverityLevel,
-    MLScores, MitreMapping, EventMetadata, BehavioralDNA,
+    MLScores, MitreMapping,
 )
 
 

@@ -7,14 +7,13 @@ POST /api/v1/simulate/burst  — injects a burst of N events immediately
 from __future__ import annotations
 
 import asyncio
-import json
 import random
-import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.api.auth import require_admin, AuditLogger
+from app.api.auth import AuditLogger
 from app.dependencies import get_app_pipeline
 from app.schemas.canonical_event import (
     ActionType,
@@ -160,8 +159,6 @@ async def _simulation_loop(interval_seconds: float = 2.0):
 
         await asyncio.sleep(interval_seconds)
 
-
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 _optional_bearer = HTTPBearer(auto_error=False)
 

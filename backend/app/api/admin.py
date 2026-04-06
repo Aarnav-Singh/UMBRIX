@@ -5,7 +5,6 @@ All endpoints require the ``admin`` role.
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request

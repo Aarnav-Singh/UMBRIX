@@ -4,8 +4,7 @@ LangGraph is an optional dependency. If it is not installed the orchestrator
 degrades gracefully to a no-op stub that returns empty context dicts,
 allowing the pipeline worker to start without the heavy graph runtime.
 """
-import asyncio
-from typing import Annotated, TypedDict
+from typing import TypedDict
 import structlog
 
 try:

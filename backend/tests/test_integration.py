@@ -6,7 +6,7 @@ Each test verifies a specific contract between layers.
 """
 import pytest
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 
 # ── Test 1: SOAR Engine — Jinja2 + Conditional Branching + Audit Trail ──

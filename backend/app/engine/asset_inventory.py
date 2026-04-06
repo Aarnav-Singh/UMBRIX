@@ -51,10 +51,14 @@ class AssetInventory:
                             bus_crit = ci.get("business_criticality", "3")
                             try:
                                 val = int(bus_crit)
-                                if val == 1: criticality = 0.9
-                                elif val == 2: criticality = 0.7
-                                elif val == 3: criticality = 0.5
-                                else: criticality = 0.3
+                                if val == 1:
+                                    criticality = 0.9
+                                elif val == 2:
+                                    criticality = 0.7
+                                elif val == 3:
+                                    criticality = 0.5
+                                else:
+                                    criticality = 0.3
                                 found = True
                             except ValueError:
                                 pass

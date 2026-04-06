@@ -3,7 +3,6 @@ import asyncio
 import re
 import structlog
 import httpx
-from datetime import datetime
 from app.config import settings
 from app.dependencies import get_app_redis, get_app_postgres
 

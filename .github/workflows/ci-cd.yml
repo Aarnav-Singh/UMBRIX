@@ -51,6 +51,7 @@ jobs:
 
       - name: Verify DB Migrations (Alembic)
         env:
+          JWT_SECRET_KEY: test-secret-key-for-ci
           POSTGRES_DSN: "postgresql://postgres:postgres@localhost:5432/sentinel"
         run: alembic upgrade head
 
@@ -230,4 +231,3 @@ jobs:
         run: |
           ENDPOINT=$(kubectl -n sentinel get ingress sentinel-fabric-ingress -o jsonpath='{.spec.rules[0].host}')
           curl -sf "https://${ENDPOINT}/api/v1/health" || echo "Smoke test: endpoint not yet DNS-resolvable (expected in fresh clusters)"
-

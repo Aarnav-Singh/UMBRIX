@@ -1,9 +1,13 @@
 """Automated Threat Hunting Service via LangGraph and APScheduler."""
-import asyncio
 import uuid
 from datetime import datetime
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import structlog
+
 from app.dependencies import get_app_clickhouse, get_app_qdrant, get_app_postgres
+from app.services.compliance_digest import run_compliance_digest_job
+from app.services.threat_intel import scheduled_intel_sync
 
 logger = structlog.get_logger(__name__)
 

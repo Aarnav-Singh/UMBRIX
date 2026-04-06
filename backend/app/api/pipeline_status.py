@@ -1,7 +1,6 @@
 """Pipeline Status API — real-time ML model health and throughput."""
 from __future__ import annotations
 
-import time
 
 import structlog
 from fastapi import APIRouter, Depends

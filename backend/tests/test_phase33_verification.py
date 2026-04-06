@@ -41,7 +41,7 @@ class TestRedisSentinelFailover:
             await store.disconnect()
             await store.connect()
 
-            val2 = await store.get("v33_test_key")
+            await store.get("v33_test_key")
             # Key may or may not survive depending on replication lag;
             # the test validates that the client reconnects without crash.
             assert True, "Reconnection after disconnect succeeded"

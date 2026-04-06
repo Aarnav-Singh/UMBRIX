@@ -41,7 +41,7 @@ def mock_pipeline():
 @pytest.fixture
 def client(mock_ratelimiter, mock_postgres, mock_pipeline):
     app = create_app()
-    from app.dependencies import get_app_ratelimiter, get_app_postgres, get_app_pipeline, get_app_clickhouse, get_app_redis
+    from app.dependencies import get_app_clickhouse, get_app_redis
 
     # Mock ClickHouse and Redis for health checks
     mock_ch = MagicMock()
@@ -110,7 +110,6 @@ def test_ingest_rate_limit_triggered(client, mock_ratelimiter):
 
 def test_ingest_success(client, mock_pipeline):
     """Test successful ingestion."""
-    from app.schemas.canonical_event import MLScores, EventMetadata
 
     # Setup mock processed event
     mock_event = MagicMock()

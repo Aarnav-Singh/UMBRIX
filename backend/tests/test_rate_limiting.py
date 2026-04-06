@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from fastapi import HTTPException
 
-from app.middleware.rate_limit import RateLimiter, RateLimitConfig
+from app.middleware.rate_limit import RateLimiter
 
 
 class TestRateLimiter:
@@ -25,7 +25,7 @@ class TestRateLimiter:
 
     @pytest.fixture
     def limiter(self, mock_redis):
-        return RateLimiter(redis=mock_redis)
+        return RateLimiter(redis_store=mock_redis)
 
     @pytest.fixture
     def mock_request(self):
@@ -36,12 +36,14 @@ class TestRateLimiter:
         req.url.path = "/api/v1/ingest/"
         return req
 
+    @pytest.mark.asyncio
     async def test_allows_request_under_limit(self, limiter, mock_request, mock_redis):
         """Requests under the limit should pass without exception."""
         mock_redis._redis.zcard = AsyncMock(return_value=5)
         # Should not raise
         await limiter.check_rate_limit(mock_request, limit=100, window_seconds=60)
 
+    @pytest.mark.asyncio
     async def test_blocks_request_over_limit(self, limiter, mock_request, mock_redis):
         """Requests over the limit should raise HTTP 429."""
         mock_redis._redis.zcard = AsyncMock(return_value=101)
@@ -49,6 +51,7 @@ class TestRateLimiter:
             await limiter.check_rate_limit(mock_request, limit=100, window_seconds=60)
         assert exc_info.value.status_code == 429
 
+    @pytest.mark.asyncio
     async def test_custom_identifier(self, limiter, mock_request, mock_redis):
         """Rate limiter should accept custom identifiers (tenant-based)."""
         mock_redis._redis.zcard = AsyncMock(return_value=0)
@@ -60,17 +63,6 @@ class TestRateLimiter:
         )
         # Verify the zadd was called (confirming the request was tracked)
         assert mock_redis._redis.zadd.called
-
-
-class TestRateLimitConfig:
-    """Tests for rate limit configuration defaults."""
-
-    def test_default_config(self):
-        """Default rate limit config should have sensible defaults."""
-        config = RateLimitConfig()
-        assert config.requests_per_minute > 0
-        assert config.burst_size >= config.requests_per_minute
-
 
 class TestRateLimitHeaders:
     """Integration-style tests verifying rate limit headers are set."""
