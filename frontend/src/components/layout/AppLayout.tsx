@@ -68,7 +68,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Fetch recent critical findings for notification bell
   const { data: findingsRes } = useSWR("/api/proxy/api/v1/findings", url => fetch(url).then(r => r.json()), { refreshInterval: 10000 });
-  const findings = Array.isArray(findingsRes) ? findingsRes : findingsRes?.findings || [];
+  const findings = Array.isArray(findingsRes) ? findingsRes : (Array.isArray(findingsRes?.findings) ? findingsRes.findings : []);
   const recentCritical = findings.filter((f: any) => f.severity === "critical" && f.status !== "dismissed" && f.status !== "approved");
   const criticalCount = recentCritical.length;
 

@@ -60,7 +60,10 @@ spec:
                 - -c
                 - |
                   echo "Triggering ClickHouse backup-to-S3..."
-                  clickhouse-client --host $CLICKHOUSE_HOST --query "BACKUP DATABASE default TO S3('https://$S3_BUCKET.s3.amazonaws.com/clickhouse/backup_$(date +%Y%m%d_%H%M%S)/', '$AWS_ACCESS_KEY_ID', '$AWS_SECRET_ACCESS_KEY');"
+                  clickhouse-client --host $CLICKHOUSE_HOST \
+                    --param_access_key="$AWS_ACCESS_KEY_ID" \
+                    --param_secret_key="$AWS_SECRET_ACCESS_KEY" \
+                    --query "BACKUP DATABASE default TO S3('https://$S3_BUCKET.s3.amazonaws.com/clickhouse/backup_$(date +%Y%m%d_%H%M%S)/', {access_key:String}, {secret_key:String});"
                   echo "Done."
               env:
                 - name: CLICKHOUSE_HOST

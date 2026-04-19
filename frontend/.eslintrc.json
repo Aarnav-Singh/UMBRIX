@@ -1,3 +1,17 @@
 {
-  "extends": "next/core-web-vitals"
+  "extends": "next/core-web-vitals",
+  "settings": {
+    "next": {
+      "rootDir": "frontend/"
+    }
+  },
+  "overrides": [
+    {
+      "files": ["*.mjs"],
+      "parserOptions": {
+        "sourceType": "module",
+        "ecmaVersion": "latest"
+      }
+    }
+  ]
 }

@@ -19,36 +19,47 @@ class SSEBroadcaster:
     """Manages SSE subscriber queues and broadcasts events."""
 
     def __init__(self) -> None:
-        self._subscribers: dict[str, asyncio.Queue] = {}
+        # Nested dict: {tenant_id: {subscriber_id: Queue}}
+        self._subscribers: dict[str, dict[str, asyncio.Queue]] = {}
 
-    def subscribe(self, subscriber_id: str) -> asyncio.Queue:
+    def subscribe(self, tenant_id: str, subscriber_id: str) -> asyncio.Queue:
+        if tenant_id not in self._subscribers:
+            self._subscribers[tenant_id] = {}
         queue: asyncio.Queue = asyncio.Queue(maxsize=256)
-        self._subscribers[subscriber_id] = queue
-        logger.info("sse_subscriber_added", subscriber_id=subscriber_id, total=len(self._subscribers))
+        self._subscribers[tenant_id][subscriber_id] = queue
+        logger.info("sse_subscriber_added", tenant_id=tenant_id, subscriber_id=subscriber_id, total=self.subscriber_count)
         return queue
 
-    def unsubscribe(self, subscriber_id: str) -> None:
-        self._subscribers.pop(subscriber_id, None)
-        logger.info("sse_subscriber_removed", subscriber_id=subscriber_id, total=len(self._subscribers))
+    def unsubscribe(self, tenant_id: str, subscriber_id: str) -> None:
+        if tenant_id in self._subscribers:
+            self._subscribers[tenant_id].pop(subscriber_id, None)
+            if not self._subscribers[tenant_id]:
+                del self._subscribers[tenant_id]
+        logger.info("sse_subscriber_removed", tenant_id=tenant_id, subscriber_id=subscriber_id, total=self.subscriber_count)
 
-    async def broadcast(self, event_data: dict) -> None:
+    async def broadcast(self, event_data: dict, tenant_id: str = "default") -> None:
+        """Broadcast event to all subscribers in a specific tenant."""
+        if tenant_id not in self._subscribers:
+            return
+            
         payload = json.dumps(event_data, default=str)
         dead: list[str] = []
-        for sid, queue in self._subscribers.items():
+        for sid, queue in self._subscribers[tenant_id].items():
             try:
                 queue.put_nowait(payload)
             except asyncio.QueueFull:
                 dead.append(sid)
-                logger.warning("sse_queue_full_dropping", subscriber_id=sid)
+                logger.warning("sse_queue_full_dropping", tenant_id=tenant_id, subscriber_id=sid)
         for sid in dead:
-            self.unsubscribe(sid)
+            self.unsubscribe(tenant_id, sid)
 
     async def event_stream(
         self,
+        tenant_id: str,
         subscriber_id: str,
         heartbeat_seconds: int = 15,
     ) -> AsyncGenerator[str, None]:
-        queue = self.subscribe(subscriber_id)
+        queue = self.subscribe(tenant_id, subscriber_id)
         try:
             while True:
                 try:
@@ -59,11 +70,11 @@ class SSEBroadcaster:
                 except asyncio.TimeoutError:
                     yield ": heartbeat\n\n"
         finally:
-            self.unsubscribe(subscriber_id)
+            self.unsubscribe(tenant_id, subscriber_id)
 
     @property
     def subscriber_count(self) -> int:
-        return len(self._subscribers)
+        return sum(len(subs) for subs in self._subscribers.values())
 
 
 # Module-level singleton used by the SOAR engine and other services.

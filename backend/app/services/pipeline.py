@@ -415,10 +415,10 @@ class PipelineService:
                 import json
                 await self._redis._client.publish("live_events", json.dumps(event_json, default=str))
             else:
-                await self._sse.broadcast(event_json)
+                await self._sse.broadcast(event_json, tenant_id=event.metadata.tenant_id)
         except Exception as e:
             logger.warning("redis_pubsub_publish_failed_fallback_to_local", error=str(e))
-            await self._sse.broadcast(event_json)
+            await self._sse.broadcast(event_json, tenant_id=event.metadata.tenant_id)
 
         # Step 13: Update posture state for dashboard
         try:

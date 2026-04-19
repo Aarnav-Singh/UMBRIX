@@ -149,7 +149,8 @@ async def verify_mfa_setup(
 
     # Generate 10 one-time backup codes
     import secrets as _secrets
-    plain_codes = [_secrets.token_hex(4).upper() for _ in range(10)]
+    # MED-13: Increase backup code entropy
+    plain_codes = [_secrets.token_hex(16).upper() for _ in range(10)]
     hashed_codes = [bcrypt.hashpw(c.encode("utf-8"), bcrypt.gensalt()).decode("utf-8") for c in plain_codes]
     await postgres.save_backup_codes(email=claims["sub"], hashed_codes=hashed_codes)
 

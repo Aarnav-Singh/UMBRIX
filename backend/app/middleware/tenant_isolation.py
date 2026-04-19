@@ -70,11 +70,11 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
             x_api_key = request.headers.get("x-api-key")
             auth_header = request.headers.get("authorization", "")
             
-            logger.info("checking_proxy_auth", x_api_key=x_api_key, expected=settings.jwt_secret_key)
+            logger.info("checking_proxy_auth", x_api_key=x_api_key)
             
-            if x_api_key and x_api_key == settings.jwt_secret_key:
+            if x_api_key and x_api_key == settings.internal_service_api_key:
                 tenant_id = "default"
-            elif auth_header == f"Bearer {settings.jwt_secret_key}":
+            elif auth_header == f"Bearer {settings.internal_service_api_key}":
                 tenant_id = "default"
             elif auth_header.startswith("Bearer "):
                 try:

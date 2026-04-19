@@ -16,7 +16,7 @@ interface AuditEntry {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 function getToken() {
- return typeof window !== "undefined" ? localStorage.getItem("sf_token") : null;
+ return typeof window !== "undefined" ? localStorage.getItem("sentinel_token") : null;
 }
 
 async function apiFetch(path: string) {

@@ -9,7 +9,10 @@ import logging
 import asyncio
 from typing import Dict, Any, List, Optional
 
-from jinja2 import Template
+from jinja2.sandbox import SandboxedEnvironment
+
+# Create a reusable sandboxed environment
+_sandbox = SandboxedEnvironment()
 
 from app.services.soar.actions import ActionProvider, PaloAltoProvider, CrowdStrikeProvider, ActionRegistry
 from app.services.soar.action_manifest import ManifestRegistry
@@ -39,15 +42,9 @@ def _render_params(params: Any, context: dict) -> Any:
         return {k: _render_params(v, context) for k, v in params.items()}
     elif isinstance(params, list):
         return [_render_params(v, context) for v in params]
-    elif isinstance(params, str) and "{{" in params:
+    elif isinstance(params, str) and ("{{" in params or "{%" in params):
         try:
-            return Template(params).render(**context)
-        except Exception as e:
-            logger.error(f"Jinja render failed for '{params}': {e}")
-            return params
-    elif isinstance(params, str) and "{%" in params:
-        try:
-            return Template(params).render(**context)
+            return _sandbox.from_string(params).render(**context)
         except Exception as e:
             logger.error(f"Jinja render failed for '{params}': {e}")
             return params
@@ -108,9 +105,11 @@ class ExecutionEngine:
             
         return "failed"
 
-    async def execute_playbook(self, playbook: Playbook, event_context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    async def execute_playbook(self, playbook: Playbook, event_context: Optional[Dict[str, Any]] = None, tenant_id: str = "default") -> List[Dict[str, Any]]:
         """Orchestrates the execution of multiple nodes with templating and branching."""
         ctx = event_context or {}
+        # Ensure tenant_id is in context for rendering if needed, and for broadcast isolation
+        tenant_id = tenant_id or ctx.get("tenant_id") or ctx.get("metadata", {}).get("tenant_id", "default")
         results = []
         for idx, node in enumerate(playbook.nodes):
             await broadcaster.broadcast({
@@ -118,7 +117,7 @@ class ExecutionEngine:
                 "playbook_id": playbook.id, 
                 "node_id": node.id, 
                 "status": "running"
-            })
+            }, tenant_id=tenant_id)
             
             # 1. Render dynamic parameters using Jinja2
             rendered_params = _render_params(node.params, ctx)
@@ -143,7 +142,7 @@ class ExecutionEngine:
                     "playbook_id": playbook.id, 
                     "node_id": node.id, 
                     "status": status
-                })
+                }, tenant_id=tenant_id)
                 
                 if self._postgres:
                     await self._postgres.save_soar_audit_log(
@@ -158,7 +157,7 @@ class ExecutionEngine:
                 branch = node.on_true if is_true else node.on_false
                 if branch:
                     branch_pb = Playbook(id=playbook.id, name=f"{playbook.name}_branch", nodes=branch)
-                    branch_results = await self.execute_playbook(branch_pb, ctx)
+                    branch_results = await self.execute_playbook(branch_pb, ctx, tenant_id=tenant_id)
                     results.extend(branch_results)
                     
                 continue
@@ -171,7 +170,7 @@ class ExecutionEngine:
                 "playbook_id": playbook.id, 
                 "node_id": node.id, 
                 "status": status
-            })
+            }, tenant_id=tenant_id)
             
             if self._postgres:
                 await self._postgres.save_soar_audit_log(
@@ -213,7 +212,7 @@ class ExecutionEngine:
                 
         return results
 
-    async def resume_playbook(self, playbook: Playbook, from_node_index: int, decision: str, event_context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    async def resume_playbook(self, playbook: Playbook, from_node_index: int, decision: str, event_context: Optional[Dict[str, Any]] = None, tenant_id: str = "default") -> List[Dict[str, Any]]:
         """Continue execution from the paused node after approval."""
         if decision != "approve":
             logger.info(f"[SOAR] Playbook {playbook.id} rejected at node index {from_node_index}")
@@ -225,7 +224,7 @@ class ExecutionEngine:
 
         # Resume logic uses standard execution on subset
         subset_pb = Playbook(id=playbook.id, name=f"{playbook.name}_resumed", nodes=remaining_nodes)
-        return await self.execute_playbook(subset_pb, event_context)
+        return await self.execute_playbook(subset_pb, event_context, tenant_id=tenant_id)
 
     def list_container_manifests(self) -> List[Dict[str, Any]]:
         """Return a serialisable summary of all registered containerised action manifests."""

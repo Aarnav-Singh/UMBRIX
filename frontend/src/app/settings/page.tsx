@@ -131,7 +131,7 @@ export default function SettingsPage() {
  <label className="text-[11px] font-mono text-ng-on uppercase">Primary Access Token</label>
  <div className="flex gap-2">
  <div className="flex-1 bg-ng-base border border-ng-outline-dim/40 p-2 text-[11px] font-mono text-ng-on flex items-center justify-between overflow-hidden">
- <span className="truncate">{showApiKey ? "sf_key_9281_00x_active_umbrix_prod" : "••••••••••••••••••••••••••••••••"}</span>
+  <span className="truncate">{showApiKey ? "sf_key_••••_••••_••••_active" : "••••••••••••••••••••••••••••••••"}</span>
  <button onClick={() => setShowApiKey(!showApiKey)} className="text-ng-muted hover:text-ng-on ml-2">
  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
  </button>

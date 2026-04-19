@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.auth import AuditLogger
+from app.middleware.auth import require_analyst
 from app.services.simulation_service import SimulationEngine, SimulationScenario
 from app.dependencies import get_app_pipeline
 from app.schemas.canonical_event import (
@@ -184,11 +185,10 @@ async def _optional_claims(
 async def start_simulation(
     interval: float = 2.0,
     request: Request = None,
-    claims: dict | None = Depends(_optional_claims),
+    claims: dict = Depends(require_analyst),
 ) -> dict:
     """Start continuous event generation."""
-    if claims:
-        AuditLogger.log("simulation_started", request=request, claims=claims, detail=f"interval={interval}")
+    AuditLogger.log("simulation_started", request=request, claims=claims, detail=f"interval={interval}")
     global _running, _task
 
     if _running:
@@ -203,11 +203,10 @@ async def start_simulation(
 @router.post("/stop")
 async def stop_simulation(
     request: Request = None,
-    claims: dict | None = Depends(_optional_claims),
+    claims: dict = Depends(require_analyst),
 ) -> dict:
     """Stop continuous event generation."""
-    if claims:
-        AuditLogger.log("simulation_stopped", request=request, claims=claims)
+    AuditLogger.log("simulation_stopped", request=request, claims=claims)
     global _running, _task
 
     _running = False
@@ -223,11 +222,10 @@ async def stop_simulation(
 async def burst_events(
     count: int = 10,
     request: Request = None,
-    claims: dict | None = Depends(_optional_claims),
+    claims: dict = Depends(require_analyst),
 ) -> dict:
     """Inject a burst of N events immediately (concurrent processing)."""
-    if claims:
-        AuditLogger.log("simulation_burst", request=request, claims=claims, detail=f"count={count}")
+    AuditLogger.log("simulation_burst", request=request, claims=claims, detail=f"count={count}")
     pipeline = get_app_pipeline()
     capped = min(count, 100)
 
@@ -249,11 +247,10 @@ async def burst_events(
 async def run_scenario(
     scenario: SimulationScenario,
     request: Request = None,
-    claims: dict | None = Depends(_optional_claims),
+    claims: dict = Depends(require_analyst),
 ) -> dict:
     """Run a structured simulation scenario."""
-    if claims:
-        AuditLogger.log("simulation_scenario_run", request=request, claims=claims, detail=f"scenario={scenario.name}")
+    AuditLogger.log("simulation_scenario_run", request=request, claims=claims, detail=f"scenario={scenario.name}")
     
     engine = SimulationEngine()
     asyncio.create_task(engine.run_scenario(scenario))

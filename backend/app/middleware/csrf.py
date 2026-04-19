@@ -35,9 +35,6 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         # Set a flag to determine if we should enforce CSRF
         should_enforce = request.method not in self.safe_methods
 
-        # Bearer tokens are immune to CSRF (browser won't attach them automatically)
-        if "authorization" in request.headers:
-            should_enforce = False
 
         # Exempt internal API paths from CSRF
         if any(request.url.path.startswith(prefix) for prefix in self.EXEMPT_PREFIXES):

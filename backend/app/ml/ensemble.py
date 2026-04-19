@@ -119,15 +119,29 @@ class EnsembleClassifier:
         """
         models_dir = model_dir or _MODELS_DIR
 
-        # Try loading the feature scaler first
-        scaler_path = os.path.join(models_dir, "feature_scaler.pkl")
+        # Try loading the feature scaler first (JSON preferred for security)
+        scaler_path = os.path.join(models_dir, "feature_scaler.json")
         if os.path.exists(scaler_path):
             try:
-                import joblib
-                self._scaler = joblib.load(scaler_path)
-                logger.info("feature_scaler_loaded", path=scaler_path)
+                import json
+                with open(scaler_path, "r") as f:
+                    data = json.load(f)
+                    # Reconstruct a simple scaler object to avoid joblib/pickle RCE
+                    class SimpleScaler:
+                        def __init__(self, mean, scale):
+                            self.mean = np.array(mean)
+                            self.scale = np.array(scale)
+                        def transform(self, X):
+                            return (X - self.mean) / self.scale
+                    self._scaler = SimpleScaler(data["mean"], data["scale"])
+                logger.info("feature_scaler_json_loaded", path=scaler_path)
             except Exception as exc:
-                logger.warning("scaler_load_failed", error=str(exc))
+                logger.warning("scaler_json_load_failed", error=str(exc))
+        else:
+            # Legacy fallback (deprecated/unsafe)
+            scaler_path_legacy = os.path.join(models_dir, "feature_scaler.pkl")
+            if os.path.exists(scaler_path_legacy):
+                logger.warning("unsafe_scaler_pickle_detected", msg="Migrate to feature_scaler.json")
 
         # Priority 1: XGBoost
         xgb_path = os.path.join(models_dir, "ensemble_xgb.json")
@@ -144,19 +158,13 @@ class EnsembleClassifier:
             except (ImportError, Exception) as exc:
                 logger.warning("xgboost_load_failed", error=str(exc))
 
-        # Priority 2: Trained RandomForest (76-dim)
-        rf_path = os.path.join(models_dir, "ensemble_rf.pkl")
-        if os.path.exists(rf_path):
-            try:
-                import joblib
-                self._rf_model = joblib.load(rf_path)
-                self._loaded = True
-                self._model_type = "trained_rf"
-                self._feature_dim = 76
-                logger.info("ensemble_trained_rf_loaded", path=rf_path)
-                return
-            except Exception as exc:
-                logger.warning("trained_rf_load_failed", error=str(exc))
+        # Priority 2: Trained RandomForest (JSON/ONNX preferred, skipping unsafe .pkl)
+        # Note: We skip ensemble_rf.pkl due to security concerns (HIGH-17).
+        # Fall back to synthetic forest if XGBoost is missing.
+        rf_path_json = os.path.join(models_dir, "ensemble_rf.json")
+        if os.path.exists(rf_path_json):
+            # Future: implement secure JSON-based RF traversal
+            pass
 
         # Priority 3: Synthetic RF fallback (16-dim, development only)
         self._rf_model = _build_synthetic_forest()

@@ -57,7 +57,7 @@ export function DataGrid<T>({ data, columns, className = "", rowKey, onRowClick,
  </tr>
  </thead>
  <tbody className="divide-y divide-ng-outline-dim/30/50">
- {sortedData.map((item) => (
+  {(Array.isArray(sortedData) ? sortedData : []).map((item) => (
  <tr 
  key={String(item[rowKey])} 
  className={`group hover:bg-ng-mid/50 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${severityKey ? getSeverityClass(String(item[severityKey])) : ''}`}

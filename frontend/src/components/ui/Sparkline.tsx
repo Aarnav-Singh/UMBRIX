@@ -19,7 +19,7 @@ export function Sparkline({
  showDot = true,
  showArea = true,
 }: SparklineProps) {
- if (!data || data.length < 2) return null;
+ if (!Array.isArray(data) || data.length < 2) return null;
 
  const min = Math.min(...data);
  const max = Math.max(...data);

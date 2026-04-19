@@ -15,7 +15,7 @@ function JsonNode({ value, depth = 0 }: { value: unknown; depth?: number }) {
  if (typeof value === "boolean")
  return <span className={value ? "text-ng-lime" : "text-ng-error"}>{String(value)}</span>;
  if (typeof value === "number") return <span className="text-ng-magenta">{value}</span>;
- if (typeof value === "string") return <span className="text-ng-lime">"{value}"</span>;
+ if (typeof value === "string") return <span className="text-ng-lime">&quot;{value}&quot;</span>;
 
  if (Array.isArray(value)) {
  if (value.length === 0) return <span className="text-ng-muted">[]</span>;
@@ -31,7 +31,7 @@ function JsonNode({ value, depth = 0 }: { value: unknown; depth?: number }) {
  {"["}
  <div className="ml-4">
  {value.map((v, i) => (
- <div key={i}><JsonNode value={v} depth={depth + 1} />{i < value.length - 1 ? "," : ""}</div>
+ <div key={i}><JsonNode value={v} depth={depth + 1} />{i < value.length - 1 ? ",\u0020" : null}</div>
  ))}
  </div>
  {"]"}
@@ -57,10 +57,10 @@ function JsonNode({ value, depth = 0 }: { value: unknown; depth?: number }) {
  <div className="ml-4">
  {keys.map((k, i) => (
  <div key={k}>
- <span className="text-ng-cyan">"{k}"</span>
+ <span className="text-ng-cyan">&quot;{k}&quot;</span>
  <span className="text-ng-muted">: </span>
  <JsonNode value={(value as any)[k]} depth={depth + 1} />
- {i < keys.length - 1 ? "," : ""}
+ {i < keys.length - 1 ? ",\u0020" : null}
  </div>
  ))}
  </div>

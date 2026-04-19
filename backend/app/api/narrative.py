@@ -1,5 +1,6 @@
 """Narrative generation API — AI-powered event summarization."""
 from __future__ import annotations
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.dependencies import get_app_clickhouse
@@ -24,13 +25,18 @@ async def generate_narrative(
     tenant_id = claims.get("tenant_id", "default")
     # Limit to 20 event IDs max
     ids = body.event_ids[:20]
-    placeholders = ", ".join(f"'{eid}'" for eid in ids)
-    
     # Query ClickHouse for the events
-    rows = await ch.client.fetch(
-        f"SELECT * FROM sentinel.events "
-        f"WHERE id IN ({placeholders}) AND tenant_id = '{tenant_id}' LIMIT 20"
+    from app.config import settings
+    result = await asyncio.to_thread(
+        ch.client.query,
+        f"SELECT * FROM {settings.clickhouse_database}.events "
+        "WHERE event_id IN {ids:Array(String)} AND tenant_id = {tenant_id:String} LIMIT 20",
+        parameters={
+            "ids": ids,
+            "tenant_id": tenant_id,
+        }
     )
+    rows = [dict(zip(result.column_names, row)) for row in result.result_rows]
     
     if not rows:
         return {"narrative": "No matching events found.", "event_count": 0}

@@ -14,7 +14,7 @@ interface User {
 }
 
 function getToken() {
- return typeof window !== "undefined" ? localStorage.getItem("sf_token") : null;
+ return typeof window !== "undefined" ? localStorage.getItem("sentinel_token") : null;
 }
 
 async function apiFetch(path: string, opts: RequestInit = {}) {

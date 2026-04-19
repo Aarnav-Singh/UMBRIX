@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { CollaborationPanel } from "@/components/features/investigation/CollaborationPanel";
 import { ThreatGraph, type STIXNode, type STIXEdge } from "@/components/features/investigation/ThreatGraph";
+import { getUser } from "@/lib/auth";
 
 // The shape coming from our v1 findings API
 interface FindingDetails {
@@ -47,11 +48,12 @@ const fetcher = (url: string) => fetch(url).then((res) => {
 });
 
 export default function IncidentDetailPage({ params }: { params: { id: string } | Promise<{ id: string }> }) {
- // In Next.js App Router, dynamic params can be a Promise
- const resolvedParams = "then" in params ? use(params) : params;
- const { id } = resolvedParams;
+  // In Next.js App Router, dynamic params can be a Promise
+  const resolvedParams = "then" in params ? use(params) : params;
+  const { id } = resolvedParams;
+  const user = getUser();
 
- const [activeTab, setActiveTab] = useState<"details" | "threat-intel">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "threat-intel">("details");
  const [graphNodes, setGraphNodes] = useState<STIXNode[]>([]);
  const [graphEdges, setGraphEdges] = useState<STIXEdge[]>([]);
  const [graphLoading, setGraphLoading] = useState(false);
@@ -367,12 +369,12 @@ export default function IncidentDetailPage({ params }: { params: { id: string } 
  </div>
 
  {/* Live Collaboration Panel */}
- <CollaborationPanel
- incidentId={id}
- currentUserId="analyst@umbrix.dev"
- currentUserName="Analyst"
- className="w-full"
- />
+  <CollaborationPanel
+    incidentId={id}
+    currentUserId={user?.sub || "anonymous"}
+    currentUserName={user?.name || user?.display_name || "Analyst"}
+    className="w-full"
+  />
  </div>
  </div>
  )} {/* end details tab */}

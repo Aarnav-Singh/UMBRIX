@@ -33,7 +33,7 @@ export function ThreatStateProvider({ children }: { children: React.ReactNode })
  keepPreviousData: true,
  });
 
- const findings: any[] = data?.findings ?? data ?? [];
+ const findings: any[] = Array.isArray(data?.findings) ? data.findings : (Array.isArray(data) ? data : []);
  const criticalCount = findings.filter((f: any) => f.severity === "critical" && f.status !== "resolved").length;
  const highCount = findings.filter((f: any) => f.severity === "high" && f.status !== "resolved").length;
  const maxScore = findings.reduce((m: number, f: any) => Math.max(m, f.ml_score ?? 0), 0);

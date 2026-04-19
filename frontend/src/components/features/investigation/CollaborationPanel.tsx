@@ -13,8 +13,9 @@ import {
  Wifi,
  WifiOff,
  ChevronDown,
- Pencil,
+  Pencil,
 } from "lucide-react";
+import { getToken } from "@/lib/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

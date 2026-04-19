@@ -70,7 +70,7 @@ async def execute_container_action(
         params=context,
     )
     pb = Playbook(id="on-demand", name=f"on-demand-{capability}", nodes=[node])
-    result = await engine.execute_playbook(pb)
+    result = await engine.execute_playbook(pb, tenant_id=claims.get("tenant_id", "default"))
 
     status = result[0].get("status", "error") if result else "error"
     return {"status": status, "results": result}
@@ -163,7 +163,7 @@ async def resume_playbook(
     )
 
     # Execute resume
-    result = await engine.resume_playbook(playbook, paused.paused_node_index, decision)
+    result = await engine.resume_playbook(playbook, paused.paused_node_index, decision, tenant_id=claims.get("tenant_id", "default"))
 
     # Clear paused state
     await repo.clear_paused_state(approval_id)
@@ -217,7 +217,7 @@ async def execute_playbook(
     )
     
     # Execute the playbook with event context for Jinja2 template rendering
-    result = await engine.execute_playbook(playbook, event_context=event_context)
+    result = await engine.execute_playbook(playbook, event_context=event_context, tenant_id=claims.get("tenant_id", "default"))
     
     has_failures = any(node_res.get("status") in ("failed", "error_provider_missing", "error_exception") for node_res in result)
     is_paused = any(node_res.get("status") == "pending_approval" for node_res in result)

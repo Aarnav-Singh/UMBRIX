@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     # ── Auth (self-issued JWT) ───────────────────────────
     jwt_secret_key: str  # No default, must be set in env
+    internal_service_api_key: str  # Separate from JWT secret for security (CRIT-01)
     jwt_fallback_secret_key: str | None = None
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = 60 * 24  # 24 hours

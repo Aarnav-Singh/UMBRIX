@@ -22,8 +22,10 @@ async def recent_events(
 ):
     """Paginated recent events with filtering — live from ClickHouse."""
     ch = get_app_clickhouse()
+    tenant_id = claims.get("tenant_id", "default")
     try:
         events, total = await ch.query_events_paginated(
+            tenant_id=tenant_id,
             limit=limit,
             offset=offset,
             min_score=min_score,

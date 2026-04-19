@@ -136,17 +136,17 @@ async def execute_hunt(
     try:
         ch = get_app_clickhouse()
         if ch._client:
-            # Build full WHERE clause with tenant isolation
-            tenant_clause = "{tenant_id:String}"
             user_where = compiled.clickhouse_where
-            full_where = f"tenant_id = '{tenant_id}'"
-            if user_where and user_where != "1=1":
-                full_where = f"tenant_id = '{tenant_id}' AND ({user_where})"
-
+            params = {
+                "tenant_id": tenant_id,
+                "limit": req.limit,
+                **compiled.clickhouse_params
+            }
             import asyncio as _asyncio
             raw = await _asyncio.to_thread(
                 ch.client.query,
-                f"SELECT * FROM events WHERE {full_where} ORDER BY timestamp DESC LIMIT {req.limit}",
+                f"SELECT * FROM events WHERE tenant_id = {{tenant_id:String}} AND ({user_where}) ORDER BY timestamp DESC LIMIT {{limit:UInt32}}",
+                parameters=params
             )
             ch_results = [dict(zip(raw.column_names, row)) for row in raw.result_rows]
         else:

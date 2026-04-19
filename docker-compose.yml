@@ -43,7 +43,7 @@ services:
     image: apache/kafka:3.7.0
     user: "0:0"
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -74,8 +74,8 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.3-alpine
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
     environment:
       CLICKHOUSE_DB: sentinel
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
@@ -106,7 +106,7 @@ services:
     image: redis:7.2.4-alpine   # pinned — was :latest
     container_name: redis-master
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
@@ -152,8 +152,6 @@ services:
   # ──────────────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_DB: sentinel
       POSTGRES_USER: sentinel
@@ -178,7 +176,7 @@ services:
   pgbouncer:
     image: edoburu/pgbouncer:latest   # pinned — was :latest
     ports:
-      - "6432:5432"
+      - "127.0.0.1:6432:5432"
     environment:
       DB_USER: sentinel
       DB_PASSWORD: ${POSTGRES_PASSWORD:-sentinel}
@@ -201,8 +199,8 @@ services:
   qdrant:
     image: qdrant/qdrant:v1.9.0
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
@@ -226,8 +224,8 @@ services:
   scylladb:
     image: scylladb/scylla:5.4
     ports:
-      - "9042:9042"
-      - "10000:10000"
+      - "127.0.0.1:9042:9042"
+      - "127.0.0.1:10000:10000"
     command: --smp 2 --memory 512M --overprovisioned 1 --developer-mode 1
     volumes:
       - scylla_data:/var/lib/scylla
@@ -248,8 +246,8 @@ services:
   memgraph:
     image: memgraph/memgraph-mage:latest   # pinned — was :latest
     ports:
-      - "7687:7687"
-      - "7444:7444"
+      - "127.0.0.1:7687:7687"
+      - "127.0.0.1:7444:7444"
     volumes:
       - memgraph_data:/var/lib/memgraph
     # Minor fix: healthcheck so dependent services can wait for Bolt to open
@@ -269,7 +267,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.50.1
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml
     extra_hosts:
@@ -281,7 +279,7 @@ services:
   grafana:
     image: grafana/grafana:10.4.0
     ports:
-      - "3100:3000"
+      - "127.0.0.1:3100:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
     depends_on:
@@ -304,7 +302,7 @@ services:
       context: ./backend
       target: api
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file: .env
     environment:
       <<: *app-env   # all shared env vars including the bug fixes
@@ -378,7 +376,7 @@ services:
     env_file: .env
     environment:
       - BACKEND_API_URL=http://api:8000
-      - BACKEND_API_KEY=${JWT_SECRET_KEY}
+      - BACKEND_API_KEY=${INTERNAL_SERVICE_API_KEY}
     depends_on:
       api:
         condition: service_healthy

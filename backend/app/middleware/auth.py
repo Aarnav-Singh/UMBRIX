@@ -82,7 +82,7 @@ def create_access_token(
 def decode_token(token: str) -> dict:
     """Validate and decode a JWT. Raises on failure."""
     try:
-        return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        return jwt.decode(token, settings.jwt_secret_key, algorithms=["HS256"])
     except JWTError as exc:
         if settings.jwt_fallback_secret_key:
             try:
@@ -105,7 +105,7 @@ async def require_auth(
     """FastAPI dependency — require a valid JWT on the request or a valid internal API key."""
     # Check for internal service-to-service header
     x_api_key = request.headers.get("x-api-key")
-    if x_api_key and x_api_key == settings.jwt_secret_key:
+    if x_api_key and x_api_key == settings.internal_service_api_key:
         return {
             "jti": f"internal-service-{uuid.uuid4()}",
             "sub": "internal-service",
@@ -120,7 +120,7 @@ async def require_auth(
         )
     
     # Try to decode token. If it's the raw API key (passed as Bearer fallback), intercept it
-    if credentials.credentials == settings.jwt_secret_key:
+    if credentials.credentials == settings.internal_service_api_key:
         return {
             "jti": f"internal-service-{uuid.uuid4()}",
             "sub": "internal-service",

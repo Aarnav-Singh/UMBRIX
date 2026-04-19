@@ -42,10 +42,10 @@ export function RealSparkline({ source, width = 80, height = 20, className = "" 
 
  function getData(): number[] {
  if (source === "eps") return epsHistory.length > 1 ? epsHistory : Array(30).fill(0);
- if (source === "posture") {
- const pts = postureData?.data_points ?? postureData ?? [];
- return pts.length > 1 ? pts.map((p: any) => p.score ?? p) : Array(30).fill(0);
- }
+  if (source === "posture") {
+    const pts = Array.isArray(postureData?.data_points) ? postureData.data_points : (Array.isArray(postureData) ? postureData : []);
+    return pts.length > 1 ? pts.map((p: any) => (typeof p === 'number' ? p : (p?.score ?? 0))) : Array(30).fill(0);
+  }
  if (source === "campaigns") return campaignBuffer;
  return Array(30).fill(0);
  }

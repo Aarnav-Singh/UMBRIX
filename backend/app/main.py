@@ -22,6 +22,7 @@ from app.middleware.csrf import CSRFMiddleware
 from app.middleware.metrics import setup_metrics
 from app.middleware.request_id import RequestIDMiddleware
 from app.middleware.tenant_isolation import TenantIsolationMiddleware
+from app.middleware.auth import require_viewer
 
 from app.api import ingest, health, campaigns, posture, simulation, agents, soar, collaboration, chatops
 from app.api import pipeline_status, events_feed, findings, reporting, settings as settings_api, sigma_rules, vault, cases, threat_graph, cep_rules
@@ -137,30 +138,9 @@ async def lifespan(app: FastAPI):
     if pg_ok:
         import bcrypt
         
-        # Seed default users ONLY in development mode.
-        # In production, these default credentials are a critical vulnerability.
-        if settings.environment == "development":
-            admin = await postgres.get_user_by_email("admin")
-            if not admin:
-                logger.info("seeding_default_users", note="development-only")
-                await postgres.create_user(UserRecord(
-                    id=str(uuid.uuid4()),
-                    tenant_id="default",
-                    email="admin",
-                    password_hash=bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode('utf-8'),
-                    role="admin",
-                    display_name="System Administrator"
-                ))
-                await postgres.create_user(UserRecord(
-                    id=str(uuid.uuid4()),
-                    tenant_id="default",
-                    email="analyst",
-                    password_hash=bcrypt.hashpw(b"analyst", bcrypt.gensalt()).decode('utf-8'),
-                    role="analyst",
-                    display_name="Security Analyst"
-                ))
-        else:
-            logger.info("skipping_default_user_seed", environment=settings.environment)
+        # CRIT-07: Never seed hardcoded default credentials.
+        # Use environment variables or a dedicated bootstrap script in production.
+        logger.info("skipping_default_user_seed", reason="security_hardening")
 
         # Seed default connectors
         from app.repositories.postgres import ConnectorRecord
@@ -234,7 +214,8 @@ async def lifespan(app: FastAPI):
                             payload = message["data"].decode("utf-8")
                             if channel == "live_events":
                                 payload_dict = json.loads(payload)
-                                await app_broadcaster.broadcast(payload_dict)
+                                tenant_id = payload_dict.get("metadata", {}).get("tenant_id", "default")
+                                await app_broadcaster.broadcast(payload_dict, tenant_id=tenant_id)
                             elif channel == "cep_rules_updated":
                                 # Payload is the tenant_id string
                                 pipeline = get_app_pipeline()
@@ -506,15 +487,19 @@ def create_app() -> FastAPI:
 
     # Tenant-scoped SSE stream
     @app.get("/api/v1/events/stream")
-    async def sse_events(request: Request):
+    async def sse_events(
+        request: Request,
+        claims: dict = Depends(require_viewer)
+    ):
         subscriber_id = str(uuid.uuid4())
+        tenant_id = claims.get("tenant_id", "default")
         from sse_starlette.sse import EventSourceResponse
         from app.dependencies import get_app_broadcaster
         
         broadcaster = get_app_broadcaster()
         
         return EventSourceResponse(
-            broadcaster.event_stream(subscriber_id),
+            broadcaster.event_stream(tenant_id, subscriber_id),
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",

@@ -2,7 +2,7 @@
 
 import React, { useCallback } from "react";
 import { FixedSizeList as List } from "react-window";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// eslint-disable-next-line
 const AutoSizer = require("react-virtualized-auto-sizer").AutoSizer as any;
 
 interface Column<T> {

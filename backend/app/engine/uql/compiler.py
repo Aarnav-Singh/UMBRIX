@@ -78,6 +78,7 @@ class CompileResult:
     """Output of the UQL compiler."""
     original_uql: str
     clickhouse_where: str = "1=1"
+    clickhouse_params: dict[str, Any] = field(default_factory=dict)
     qdrant_params: dict[str, Any] | None = None
     cep_pattern_id: str | None = None
     sequence_entity_field: str | None = None
@@ -91,10 +92,18 @@ class _Transformer:
 
     def __init__(self) -> None:
         self._ch_clauses: list[str] = []
+        self._ch_params: dict[str, Any] = {}
+        self._param_counter = 0
         self._qdrant_params: dict[str, Any] | None = None
         self._cep_pattern_id: str | None = None
         self._sequence_data: dict[str, Any] | None = None
         self._errors: list[str] = []
+
+    def _next_param(self, value: Any, type_hint: str = "String") -> str:
+        self._param_counter += 1
+        name = f"uql_p{self._param_counter}"
+        self._ch_params[name] = value
+        return f"{{{name}:{type_hint}}}"
 
     # ── Visitors ─────────────────────────────────────────────────────────────
 
@@ -154,39 +163,43 @@ class _Transformer:
 
     def _compile_ml_filter(self, node: Any) -> str:
         from lark import Token
-        tokens = [t for t in node.children if isinstance(t, Token)]
-        # tokens: [COMPARATOR or ML_SCORE, COMPARATOR, number...]
-        # children: ML_SCORE token, COMPARATOR token, number tree
         children = node.children
         comparator = str(children[1])
         number_val = self._extract_number(children[2])
-        return f"meta_score {comparator} {number_val}"
+        p = self._next_param(float(number_val), "Float64")
+        return f"meta_score {comparator} {p}"
 
     def _compile_tactic_filter(self, node: Any) -> str:
         from lark import Token
         tactic_raw = str(node.children[0]).strip('"')
         tactic_lower = tactic_raw.lower()
-        # ClickHouse: check if mitre_predictions JSON contains this tactic
-        # Column: mitre_predictions (String, JSON array)
         safe = _TACTIC_MAP.get(tactic_lower, tactic_lower)
+        p = self._next_param(safe)
         return (
-            f"arrayExists(x -> JSONExtractString(x, 'tactic') = '{safe}', "
+            f"arrayExists(x -> JSONExtractString(x, 'tactic') = {p}, "
             f"JSONExtractArrayRaw(mitre_predictions))"
         )
 
     def _compile_source_filter(self, node: Any) -> str:
         value = str(node.children[0]).strip('"')
-        safe = value.replace("'", "\\'")
-        return f"source_type = '{safe}'"
+        p = self._next_param(value)
+        return f"source_type = {p}"
 
     def _compile_field_filter(self, node: Any) -> str:
         from lark import Token
         field_name = str(node.children[0])
         comparator = str(node.children[1])
         value_node = node.children[2]
-        value_str = self._extract_value(value_node)
+        val = self._extract_raw_value(value_node)
         ch_col = _FIELD_ALIASES.get(field_name, field_name)
-        return f"{ch_col} {comparator} {value_str}"
+        
+        # Infer type hint for ClickHouse parameter
+        type_hint = "String"
+        if isinstance(val, (int, float)):
+            type_hint = "Float64"
+            
+        p = self._next_param(val, type_hint)
+        return f"{ch_col} {comparator} {p}"
 
     def _compile_semantic_filter(self, node: Any) -> None:
         query_text = str(node.children[0]).strip('"')
@@ -228,16 +241,25 @@ class _Transformer:
         return str(node)
 
     def _extract_value(self, node: Any) -> str:
+        # DEPRECATED: use _extract_raw_value with _next_param
+        val = self._extract_raw_value(node)
+        if isinstance(val, (int, float)):
+            return str(val)
+        return f"'{val}'"
+
+    def _extract_raw_value(self, node: Any) -> Any:
         from lark import Tree, Token
         if isinstance(node, Tree):
             if node.data == "field_value":
                 inner = node.children[0]
                 if isinstance(inner, Tree) and inner.data == "number":
-                    return self._extract_number(inner)
-                return str(inner)
-            return self._extract_number(node)
+                    num_str = self._extract_number(inner)
+                    return float(num_str) if "." in num_str else int(num_str)
+                return str(inner).strip('"\'')
+            num_str = self._extract_number(node)
+            return float(num_str) if "." in num_str else int(num_str)
         s = str(node).strip('"\'')
-        return f"'{s}'"
+        return s
 
     def _parse_duration(self, node: Any) -> int:
         from lark import Tree, Token
@@ -247,9 +269,9 @@ class _Transformer:
         multipliers = {"s": 1, "m": 60, "h": 3600, "d": 86400}
         return amount * multipliers.get(unit, 1)
 
-    def result(self) -> tuple[str, dict | None, dict | None]:
+    def result(self) -> tuple[str, dict[str, Any], dict | None, dict | None]:
         ch_where = " AND ".join(c for c in self._ch_clauses if c) or "1=1"
-        return ch_where, self._qdrant_params, self._sequence_data
+        return ch_where, self._ch_params, self._qdrant_params, self._sequence_data
 
 
 class UQLCompiler:
@@ -283,8 +305,9 @@ class UQLCompiler:
         try:
             transformer = _Transformer()
             transformer.visit(tree)
-            ch_where, qdrant_params, sequence_data = transformer.result()
+            ch_where, ch_params, qdrant_params, sequence_data = transformer.result()
             result.clickhouse_where = ch_where or "1=1"
+            result.clickhouse_params = ch_params
             result.qdrant_params = qdrant_params
             if sequence_data:
                 result.sequence_entity_field = sequence_data.get("entity_field")
