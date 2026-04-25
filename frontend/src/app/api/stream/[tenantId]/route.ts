@@ -4,11 +4,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest, { params }: { params: { tenantId: string } }) {
  const backendUrl = process.env.BACKEND_API_URL || "http://localhost:8000";
- const apiKey = process.env.BACKEND_API_KEY;
 
- if (!apiKey) {
- console.error("[SSE Proxy] ERROR: BACKEND_API_KEY is not set.");
- return new Response("Server Configuration Error", { status: 500 });
+ const clientAuth = request.headers.get("Authorization");
+ if (!clientAuth) {
+ return new Response("Unauthorized", { status: 401 });
  }
 
  const targetUrl = `${backendUrl}/api/v1/events/stream`;
@@ -16,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: { tenantId
  try {
  const response = await fetch(targetUrl, {
  headers: {
- "Authorization": `Bearer ${apiKey}`,
+ "Authorization": clientAuth,
  "Accept": "text/event-stream"
  }
  });

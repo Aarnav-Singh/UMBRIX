@@ -385,8 +385,8 @@ def create_app() -> FastAPI:
             "name": "UMBRIX Security Team",
             "email": "security@umbrix.io",
         },
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url="/docs" if settings.environment != "production" else None,
+        redoc_url="/redoc" if settings.environment != "production" else None,
     )
 
     # Prometheus Metrics

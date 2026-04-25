@@ -29,16 +29,25 @@ async function handleProxyRequest(request: NextRequest, pathArray: string[]) {
  }
 
  const pathString = pathArray.join("/");
+
+ // Reject path traversal attempts
+ if (pathString.includes("..") || !pathString.startsWith("api/")) {
+ return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+ }
+
+ // Require the client to supply a Bearer token — don't silently upgrade anonymous requests
+ const clientAuth = request.headers.get("Authorization");
+ if (!clientAuth) {
+ return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+ }
+
  const searchParams = request.nextUrl.searchParams.toString();
  const query = searchParams ? `?${searchParams}` : "";
 
  const targetUrl = `${backendUrl}/${pathString}${query}`;
 
  const headers = new Headers();
- const clientAuth = request.headers.get("Authorization");
- if (clientAuth) {
  headers.set("Authorization", clientAuth);
- }
 
  // Pass along content type if we have a body
  const reqContentType = request.headers.get("Content-Type");

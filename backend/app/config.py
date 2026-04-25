@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     internal_service_api_key: str  # Separate from JWT secret for security (CRIT-01)
     jwt_fallback_secret_key: str | None = None
     jwt_algorithm: str = "HS256"
-    jwt_expiry_minutes: int = 60 * 24  # 24 hours
+    jwt_expiry_minutes: int = 60  # 1 hour (reduced from 24h — shorter window limits stolen token validity)
 
     # ── ClickHouse ───────────────────────────────────────
     clickhouse_host: str = "localhost"

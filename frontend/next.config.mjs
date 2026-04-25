@@ -3,8 +3,8 @@ import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: "standalone",
-    eslint: { ignoreDuringBuilds: true },
-    typescript: { ignoreBuildErrors: true },
+    eslint: { ignoreDuringBuilds: false },
+    typescript: { ignoreBuildErrors: false },
     async headers() {
         return [
             {
@@ -17,8 +17,8 @@ const nextConfig = {
                     { key: "X-Content-Type-Options", value: "nosniff" },
                     { key: "Referrer-Policy", value: "origin-when-cross-origin" },
                     { 
-                        key: "Content-Security-Policy", 
-                        value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none';" 
+                        key: "Content-Security-Policy",
+                        value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ws: wss:; frame-ancestors 'none';"
                     }
                 ],
             },

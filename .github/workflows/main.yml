@@ -17,7 +17,7 @@ jobs:
         image: postgres:15-alpine
         env:
           POSTGRES_USER: sentinel
-          POSTGRES_PASSWORD: sentinelpassword
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
           POSTGRES_DB: sentinel_db
         ports:
           - 5432:5432
@@ -36,7 +36,7 @@ jobs:
         image: clickhouse/clickhouse-server:23.8-alpine
         env:
           CLICKHOUSE_USER: default
-          CLICKHOUSE_PASSWORD: defaultpassword
+          CLICKHOUSE_PASSWORD: ${{ secrets.CI_CLICKHOUSE_PASSWORD }}
           CLICKHOUSE_DB: sentinel
         ports:
           - 8123:8123
@@ -63,14 +63,15 @@ jobs:
         pytest tests/
       env:
         ENVIRONMENT: test
-        JWT_SECRET_KEY: ci-test-key-not-for-production
+        JWT_SECRET_KEY: ${{ secrets.CI_JWT_SECRET_KEY }}
+        INTERNAL_SERVICE_API_KEY: ${{ secrets.CI_INTERNAL_SERVICE_API_KEY }}
         POSTGRES_HOST: localhost
         POSTGRES_USER: sentinel
-        POSTGRES_PASSWORD: sentinelpassword
+        POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
         POSTGRES_DB: sentinel_db
         CLICKHOUSE_HOST: localhost
         CLICKHOUSE_USER: default
-        CLICKHOUSE_PASSWORD: defaultpassword
+        CLICKHOUSE_PASSWORD: ${{ secrets.CI_CLICKHOUSE_PASSWORD }}
         REDIS_HOST: localhost
         
   test-frontend:
@@ -92,7 +93,7 @@ jobs:
     - name: Run linter
       run: |
         cd frontend
-        npm run lint || echo "Linting failed, but continuing for now"
+        npm run lint
         
     - name: Build
       run: |

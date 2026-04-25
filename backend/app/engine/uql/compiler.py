@@ -191,7 +191,9 @@ class _Transformer:
         comparator = str(node.children[1])
         value_node = node.children[2]
         val = self._extract_raw_value(value_node)
-        ch_col = _FIELD_ALIASES.get(field_name, field_name)
+        ch_col = _FIELD_ALIASES.get(field_name)
+        if ch_col is None:
+            raise ValueError(f"Unknown field: {field_name!r}")
         
         # Infer type hint for ClickHouse parameter
         type_hint = "String"

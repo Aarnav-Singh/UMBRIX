@@ -1,11 +1,14 @@
 """Narrative generation API — AI-powered event summarization."""
 from __future__ import annotations
 import asyncio
+import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.dependencies import get_app_clickhouse
 from app.engine.narrative import NarrativeEngine
 from app.middleware.auth import require_analyst
+
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
 
 router = APIRouter(prefix="/narrative", tags=["intelligence"])
 _engine = NarrativeEngine()
@@ -23,8 +26,9 @@ async def generate_narrative(
     if not body.event_ids:
         raise HTTPException(status_code=400, detail="event_ids must not be empty")
     tenant_id = claims.get("tenant_id", "default")
-    # Limit to 20 event IDs max
-    ids = body.event_ids[:20]
+    ids = [eid for eid in body.event_ids if _UUID_RE.match(str(eid))][:20]
+    if not ids:
+        raise HTTPException(status_code=400, detail="No valid event IDs provided")
     # Query ClickHouse for the events
     from app.config import settings
     result = await asyncio.to_thread(

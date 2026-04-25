@@ -49,7 +49,7 @@ export default function ProfilePage() {
  const [copied, setCopied] = useState(false);
 
  useEffect(() => {
- const token = typeof window !== 'undefined' ? localStorage.getItem('sf_token') : null;
+ const token = typeof window !== 'undefined' ? localStorage.getItem('sentinel_token') : null;
  if (token) {
  const parsed = parseJwt(token);
  if (parsed) setClaims(parsed);
@@ -195,22 +195,13 @@ export default function ProfilePage() {
  {mfaStep === "setup" && (
  <div className="space-y-4">
  <p className="text-sm text-ng-on">
- Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.):
+ Enter this secret key in your authenticator app:
  </p>
- <div className="bg-white p-4 rounded-none w-fit mx-auto">
- {/* QR code placeholder — use provisioning URI */}
- {/* eslint-disable-next-line @next/next/no-img-element */}
- <img
- src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mfaUri)}`}
- alt="MFA QR Code"
- className="w-48 h-48"
- />
- </div>
- <div className="text-center">
- <p className="text-[10px] text-ng-muted mb-1">Or enter this secret manually:</p>
- <code className="text-xs text-ng-cyan font-mono bg-ng-mid px-3 py-1 rounded-none border border-ng-outline-dim/40">
+ <div className="bg-ng-mid border border-ng-outline-dim/40 rounded-none p-4 text-center space-y-2">
+ <code className="block text-base text-ng-cyan font-mono tracking-[0.25em] break-all select-all">
  {mfaSecret}
  </code>
+ <p className="text-[10px] text-ng-muted">Google Authenticator · Authy · 1Password → Add account → Enter key manually</p>
  </div>
  <div className="flex gap-3">
  <input

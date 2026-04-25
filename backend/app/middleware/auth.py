@@ -91,7 +91,7 @@ def decode_token(token: str) -> dict:
                 pass
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {exc}",
+            detail="Invalid token",
         ) from exc
 
 
